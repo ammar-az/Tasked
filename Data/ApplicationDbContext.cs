@@ -9,7 +9,9 @@ public class ApplicationDbContext : DbContext
     {
 
     }
-
-    public DbSet<TempItem> TempItems => Set<TempItem>();
-    
+    public DbSet<Organization> Organizations => Set<Organization>();
+    public DbSet<Project> Projects => Set<Project>();
+    public DbSet<Todo> Todos => Set<Todo>();
+    public DbSet<User> Users => Set<User>();
+    public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
 }
