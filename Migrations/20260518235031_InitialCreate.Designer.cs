@@ -12,7 +12,7 @@ using Tasked.Data;
 namespace Tasked.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260517192613_InitialCreate")]
+    [Migration("20260518235031_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
