@@ -12,7 +12,7 @@ using Tasked.Data;
 namespace Tasked.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260518235031_InitialCreate")]
+    [Migration("20260519004345_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -39,6 +39,10 @@ namespace Tasked.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_organizations");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_organizations_name");
 
                     b.ToTable("organizations", (string)null);
                 });
@@ -69,6 +73,10 @@ namespace Tasked.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_projects");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_projects_name");
 
                     b.HasIndex("OrgId")
                         .HasDatabaseName("ix_projects_org_id");
@@ -152,6 +160,10 @@ namespace Tasked.Migrations
 
                     b.HasIndex("OrgId")
                         .HasDatabaseName("ix_users_org_id");
+
+                    b.HasIndex("Username")
+                        .IsUnique()
+                        .HasDatabaseName("ix_users_username");
 
                     b.ToTable("users", (string)null);
                 });

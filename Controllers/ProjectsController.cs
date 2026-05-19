@@ -40,25 +40,88 @@ public class ProjectsController : ControllerBase
         return Ok(project);
     }
 
-    //get all projects a user owns 
-    [HttpGet("{userId}")]
-    public  async Task<IActionResult> FetchUserProjects(Guid userId)
-    {   
-        var projects = await _db.Projects
-        .Where(project => project.OwnerId == userId)
-        .ToListAsync();
+    [HttpGet("{projectId}")]
+    public async Task<IActionResult> GetProject(Guid projectId)
+    {
+        var project = await _db.Projects
+        .FindAsync(projectId);
 
-        return Ok(projects);
+        return Ok(project);
     }
 
+    [HttpDelete("{projectId}")]
+    public async Task<IActionResult> DeleteProject(Guid projectId)
+    {
+        var project = await _db.Projects
+        .Where(p => p.Id == projectId)
+        .ExecuteDeleteAsync();
+
+        return Ok(project);
+    }
+
+    // [HttpPatch("{projectId}")]
+    // public async Task<IActionResult> UpdateProject(Guid projectId)
+    // {
+    //     var project = await _db.Projects
+    //     .Where(p => p.Id == projectId)
+    //     .ExecuteUpdateAsync();
+
+    //     return Ok(project);
+    // }
+
     //get all projects a user is a member of
+    [HttpGet("{userId}/memberof")]
+    public  async Task<IActionResult> GetUserMembership(Guid userId)
+    {   
+        var memberships = await _db.ProjectMembers
+        .Where(membership => membership.UserId == userId)
+        .Include(membership => membership.Project)
+        .ToListAsync();
 
-    //get all projects belonging to an org
+        return Ok(memberships);
+    }
 
-    //get project by name
+    [HttpPost("{projectId}/members")]
+    public async Task<IActionResult> NewMembership(Guid projectId, Guid userId)
+    {
+        var membership = new ProjectMember
+        {
+            ProjectId = projectId,
+            UserId = userId
+            //role = 
+        };
 
-    //delete a project
+        _db.ProjectMembers.Add(membership);
+        await _db.SaveChangesAsync();
+        return Ok(membership);
+    }
 
-    //update project details
+    [HttpGet("{projectId}/members")]
+     public async Task<IActionResult> GetMembers(Guid projectId)
+    {   
+        var members = await _db.ProjectMembers
+        .Where(member => member.ProjectId == projectId)
+        .Include(member => member.User)
+        .ToListAsync();
+
+        return Ok(members);
+    }
+
+    [HttpDelete("{projectId}/members/{userId}")]
+    public async Task<IActionResult> LeaveProject(Guid projectId, Guid userId)
+    {
+        var member = await _db.ProjectMembers
+        .Where(m => m.ProjectId == projectId && m.UserId == userId)
+        .ExecuteDeleteAsync();
+
+        return Ok(member);
+    }
+
+    // [HttpPatch("{projectId}/members/{userId}")]
+    // public async Task<IActionResult> ChangeRole(Guid projectId, Guid userId)
+    // {
+    //     //need roles done to get this working
+    //     return Ok(member);
+    // }
 
 }

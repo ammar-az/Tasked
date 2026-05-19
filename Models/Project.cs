@@ -1,4 +1,8 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Tasked.Models;
+
+[Index(nameof(Name), IsUnique = true)]
 public class Project
 {
     public Guid Id {get; set;}

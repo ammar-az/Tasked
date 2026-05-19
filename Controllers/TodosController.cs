@@ -17,7 +17,7 @@ public class TodosController : ControllerBase
     }
 
     //create task
-    [HttpPost]
+    [HttpPost("projects/{projectId}")]
     public async Task<IActionResult> CreateTodo(Guid projectId, string title)
     {
         var todo = new Todo
@@ -32,8 +32,8 @@ public class TodosController : ControllerBase
     }
 
     //get all tasks in a project
-    [HttpGet("{projectId}")]
-    public  async Task<IActionResult> FetchProjectTodos(Guid projectId)
+    [HttpGet("projects/{projectId}")]
+    public  async Task<IActionResult> GetProjectTodos(Guid projectId)
     {   
         var todos = await _db.Todos
         .Where(todo => todo.ProjectId == projectId)
@@ -42,10 +42,25 @@ public class TodosController : ControllerBase
         return Ok(todos);
     }
 
-    //delete a task
+    [HttpGet("{todoId}")]
+    public async Task<IActionResult> GetTodo(Guid todoId)
+    {
+        var todo = await _db.Todos
+        .Where(t => t.Id == todoId)
+        .ExecuteDeleteAsync();
 
-    //modify a task 
+        return Ok(todo);
+    }
 
-    //resolve a task (falls under modify?)
+    [HttpDelete("{todoId}")]
+    public async Task<IActionResult> DeleteTodo(Guid todoId)
+    {
+        var todo = await _db.Todos
+        .FindAsync(todoId);
+
+        return Ok(todo);
+    }
+
+    //patch
 
 }

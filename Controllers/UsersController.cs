@@ -16,7 +16,7 @@ public class UsersController : ControllerBase
         _db = db;
     }
 
-    //register user
+    //register new user
     [HttpPost]
     public async Task<IActionResult> Register(string username)
     {
@@ -29,17 +29,38 @@ public class UsersController : ControllerBase
         await _db.SaveChangesAsync();
         return Ok(user);
     }
+
+    [HttpGet("{userId}")]
+    public async Task<IActionResult> GetUser(Guid userId)
+    {
+        var user = await _db.Users
+        .Where(u => u.Id == userId)
+        .ExecuteDeleteAsync();
+
+        return Ok(user);
+    }
     
-    //get user by username
+    [HttpDelete("{userId}")]
+    public async Task<IActionResult> DeleteUser(Guid userId)
+    {
+        var user = await _db.Users
+        .FindAsync(userId);
 
-    //get users in org
+        return Ok(user);
+    }
 
-    //get users working on project 
 
-    //delete user account
+    //get all projects a user owns 
+    [HttpGet("{userId}/projects")]
+    public async Task<IActionResult> GetUserProjects(Guid userId)
+    {   
+        var projects = await _db.Projects
+        .Where(project => project.OwnerId == userId)
+        .ToListAsync();
 
-    //put update account details
-
-    //put update membership
+        return Ok(projects);
+    }
+    
+    //patch
 
 }

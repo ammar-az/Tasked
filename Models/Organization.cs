@@ -1,4 +1,8 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Tasked.Models;
+
+[Index(nameof(Name), IsUnique = true)]
 public class Organization
 {
     public Guid Id {get; set;}

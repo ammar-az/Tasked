@@ -113,9 +113,21 @@ namespace Tasked.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "ix_organizations_name",
+                table: "organizations",
+                column: "name",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "ix_project_members_user_id",
                 table: "project_members",
                 column: "user_id");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_projects_name",
+                table: "projects",
+                column: "name",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "ix_projects_org_id",
@@ -136,6 +148,12 @@ namespace Tasked.Migrations
                 name: "ix_users_org_id",
                 table: "users",
                 column: "org_id");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_users_username",
+                table: "users",
+                column: "username",
+                unique: true);
         }
 
         /// <inheritdoc />
