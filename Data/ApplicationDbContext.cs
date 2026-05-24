@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using Tasked.Models;
+using Tasked.Entities;
 
 namespace Tasked.Data;
 

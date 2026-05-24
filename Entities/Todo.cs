@@ -1,7 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Tasked.Enums;
 
-namespace Tasked.Models;
+namespace Tasked.Entities;
+
 [Index(nameof(ProjectId), nameof(IssueNo), IsUnique = true)]
 public class Todo
 {
@@ -16,4 +17,3 @@ public class Todo
     public DateTime CreatedAt {get; set;}
     public int IssueNo {get; set;}
 }
-

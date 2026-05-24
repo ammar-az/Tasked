@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 
-namespace Tasked.Models;
+namespace Tasked.Entities;
 
 [Index(nameof(Email), IsUnique = true)]
 [Index(nameof(Username), IsUnique = true)]

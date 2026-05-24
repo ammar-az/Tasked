@@ -12,7 +12,7 @@ using Tasked.Data;
 namespace Tasked.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260523172239_InitialCreate")]
+    [Migration("20260524203006_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -25,7 +25,7 @@ namespace Tasked.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Tasked.Models.Organization", b =>
+            modelBuilder.Entity("Tasked.Entities.Organization", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -47,7 +47,7 @@ namespace Tasked.Migrations
                     b.ToTable("organizations", (string)null);
                 });
 
-            modelBuilder.Entity("Tasked.Models.Project", b =>
+            modelBuilder.Entity("Tasked.Entities.Project", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -91,7 +91,7 @@ namespace Tasked.Migrations
                     b.ToTable("projects", (string)null);
                 });
 
-            modelBuilder.Entity("Tasked.Models.ProjectMember", b =>
+            modelBuilder.Entity("Tasked.Entities.ProjectMember", b =>
                 {
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uuid")
@@ -114,7 +114,7 @@ namespace Tasked.Migrations
                     b.ToTable("project_members", (string)null);
                 });
 
-            modelBuilder.Entity("Tasked.Models.Todo", b =>
+            modelBuilder.Entity("Tasked.Entities.Todo", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -163,7 +163,7 @@ namespace Tasked.Migrations
                     b.ToTable("todos", (string)null);
                 });
 
-            modelBuilder.Entity("Tasked.Models.User", b =>
+            modelBuilder.Entity("Tasked.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -211,14 +211,14 @@ namespace Tasked.Migrations
                     b.ToTable("users", (string)null);
                 });
 
-            modelBuilder.Entity("Tasked.Models.Project", b =>
+            modelBuilder.Entity("Tasked.Entities.Project", b =>
                 {
-                    b.HasOne("Tasked.Models.Organization", "Org")
+                    b.HasOne("Tasked.Entities.Organization", "Org")
                         .WithMany()
                         .HasForeignKey("OrgId")
                         .HasConstraintName("fk_projects_organizations_org_id");
 
-                    b.HasOne("Tasked.Models.User", "Owner")
+                    b.HasOne("Tasked.Entities.User", "Owner")
                         .WithMany("OwnedProjects")
                         .HasForeignKey("OwnerId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -230,16 +230,16 @@ namespace Tasked.Migrations
                     b.Navigation("Owner");
                 });
 
-            modelBuilder.Entity("Tasked.Models.ProjectMember", b =>
+            modelBuilder.Entity("Tasked.Entities.ProjectMember", b =>
                 {
-                    b.HasOne("Tasked.Models.Project", "Project")
+                    b.HasOne("Tasked.Entities.Project", "Project")
                         .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_project_members_projects_project_id");
 
-                    b.HasOne("Tasked.Models.User", "User")
+                    b.HasOne("Tasked.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -251,14 +251,14 @@ namespace Tasked.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Tasked.Models.Todo", b =>
+            modelBuilder.Entity("Tasked.Entities.Todo", b =>
                 {
-                    b.HasOne("Tasked.Models.User", "Assigned")
+                    b.HasOne("Tasked.Entities.User", "Assigned")
                         .WithMany("AssignedTodos")
                         .HasForeignKey("AssignedID")
                         .HasConstraintName("fk_todos_users_assigned_id");
 
-                    b.HasOne("Tasked.Models.Project", "Project")
+                    b.HasOne("Tasked.Entities.Project", "Project")
                         .WithMany("Todos")
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -270,9 +270,9 @@ namespace Tasked.Migrations
                     b.Navigation("Project");
                 });
 
-            modelBuilder.Entity("Tasked.Models.User", b =>
+            modelBuilder.Entity("Tasked.Entities.User", b =>
                 {
-                    b.HasOne("Tasked.Models.Organization", "Org")
+                    b.HasOne("Tasked.Entities.Organization", "Org")
                         .WithMany()
                         .HasForeignKey("OrgId")
                         .HasConstraintName("fk_users_organizations_org_id");
@@ -280,12 +280,12 @@ namespace Tasked.Migrations
                     b.Navigation("Org");
                 });
 
-            modelBuilder.Entity("Tasked.Models.Project", b =>
+            modelBuilder.Entity("Tasked.Entities.Project", b =>
                 {
                     b.Navigation("Todos");
                 });
 
-            modelBuilder.Entity("Tasked.Models.User", b =>
+            modelBuilder.Entity("Tasked.Entities.User", b =>
                 {
                     b.Navigation("AssignedTodos");
 

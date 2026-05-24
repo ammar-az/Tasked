@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Tasked.Data;
-using Tasked.Models;
+using Tasked.Entities;
 
 namespace Tasked.Controllers;
 
@@ -9,7 +9,7 @@ namespace Tasked.Controllers;
 [Route("api/[controller]")]
 public class OrgsController : ControllerBase
 {
-     private readonly ApplicationDbContext _db;
+    private readonly ApplicationDbContext _db;
 
     public OrgsController(ApplicationDbContext db)
     {
@@ -67,5 +67,7 @@ public class OrgsController : ControllerBase
 
         return Ok(users);
     }
+
+    //add/remove users from org 
 
 }

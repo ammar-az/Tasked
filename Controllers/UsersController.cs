@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Tasked.Data;
-using Tasked.Models;
+using Tasked.Entities;
+using Tasked.DTOs;
 
 namespace Tasked.Controllers;
 
@@ -9,7 +10,7 @@ namespace Tasked.Controllers;
 [Route("api/[controller]")]
 public class UsersController : ControllerBase
 {
-     private readonly ApplicationDbContext _db;
+    private readonly ApplicationDbContext _db;
 
     public UsersController(ApplicationDbContext db)
     {
@@ -31,15 +32,33 @@ public class UsersController : ControllerBase
         return Ok(user);
     }
 
+    //should return: username, org, and email
+    //this is how a proper get should look
     [HttpGet("{userId}")]
-    public async Task<IActionResult> GetUserById(Guid userId)
+    public async Task<ActionResult<UserDto>> GetUserById(Guid userId)
     {
+    
         var user = await _db.Users
-        .FindAsync(userId);
+        .Where(u => u.Id == userId)
+        .Select(u => 
+            new UserDto()
+            {
+                Id = u.Id,
+                Username = u.Username,
+                OrgId = u.OrgId,
+                OrgName = u.Org == null ? null : u.Org.Name,
+                Email = u.Email
+            }).SingleOrDefaultAsync();
+
+        if(user == null)
+        {
+            return NotFound();
+        }
 
         return Ok(user);
     }
-    
+
+    //only user can delete own acc
     [HttpDelete("{userId}")]
     public async Task<IActionResult> DeleteUser(Guid userId)
     {
@@ -61,7 +80,7 @@ public class UsersController : ControllerBase
 
         return Ok(projects);
     }
-    
-    //patch
+
+    //user should be able to change their email, password, and username + leave and join orgs
 
 }

@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Tasked.Enums;
 
-namespace Tasked.Models;
+namespace Tasked.Entities;
 
 [PrimaryKey(nameof(ProjectId),nameof(UserId))]
 public class ProjectMember

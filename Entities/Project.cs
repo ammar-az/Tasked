@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 
-namespace Tasked.Models;
+namespace Tasked.Entities;
 
 [Index(nameof(Name), IsUnique = true)]
 public class Project
@@ -14,5 +14,4 @@ public class Project
     public string? Description {get; set;}
     public bool IsVisible {get; set;}
     public ICollection<Todo> Todos {get; set;} = [];
-
 }

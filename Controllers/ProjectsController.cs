@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Tasked.Data;
-using Tasked.Models;
+using Tasked.Entities;
 
 namespace Tasked.Controllers;
 
@@ -9,14 +9,14 @@ namespace Tasked.Controllers;
 [Route("api/[controller]")]
 public class ProjectsController : ControllerBase
 {
-     private readonly ApplicationDbContext _db;
+    private readonly ApplicationDbContext _db;
 
     public ProjectsController(ApplicationDbContext db)
     {
         _db = db;
     }
 
-    //create project
+    //create project | add org, description, visibility 
     [HttpPost]
     public async Task<IActionResult> CreateProject(Guid userId, string name)
     {
@@ -41,6 +41,7 @@ public class ProjectsController : ControllerBase
         return Ok(project);
     }
 
+    //Should only succeed if public, private but member of org, or private but member
     [HttpGet("{projectId}")]
     public async Task<IActionResult> GetProject(Guid projectId)
     {
@@ -49,7 +50,7 @@ public class ProjectsController : ControllerBase
 
         return Ok(project);
     }
-
+    //Only owner can do this
     [HttpDelete("{projectId}")]
     public async Task<IActionResult> DeleteProject(Guid projectId)
     {
@@ -59,6 +60,8 @@ public class ProjectsController : ControllerBase
 
         return Ok(project);
     }
+
+    //should be able to update owner, name, description, and visiblity
 
     // [HttpPatch("{projectId}")]
     // public async Task<IActionResult> UpdateProject(Guid projectId)
@@ -70,7 +73,7 @@ public class ProjectsController : ControllerBase
     //     return Ok(project);
     // }
 
-    //get all projects a user is a member of
+    //get all projects a user is a member of | either check visibility or make different route for that
     [HttpGet("{userId}/memberof")]
     public  async Task<IActionResult> GetUserMembership(Guid userId)
     {   
@@ -81,7 +84,7 @@ public class ProjectsController : ControllerBase
 
         return Ok(memberships);
     }
-
+    //get all members of a project, same visible check as before, 
     [HttpPost("{projectId}/members")]
     public async Task<IActionResult> NewMembership(Guid projectId, Guid userId)
     {
@@ -97,8 +100,9 @@ public class ProjectsController : ControllerBase
         return Ok(membership);
     }
 
+    //get all members of a project, same visible check as before, 
     [HttpGet("{projectId}/members")]
-     public async Task<IActionResult> GetMembers(Guid projectId)
+        public async Task<IActionResult> GetMembers(Guid projectId)
     {   
         var members = await _db.ProjectMembers
         .Where(member => member.ProjectId == projectId)
@@ -108,6 +112,7 @@ public class ProjectsController : ControllerBase
         return Ok(members);
     }
 
+    //only an admin or owner can remove users other than themselves. Must handle case where owner leaves
     [HttpDelete("{projectId}/members/{userId}")]
     public async Task<IActionResult> LeaveProject(Guid projectId, Guid userId)
     {
@@ -117,6 +122,9 @@ public class ProjectsController : ControllerBase
 
         return Ok(member);
     }
+
+
+    //Only owner can promote to admin, admin can switch viewer to contributor though
 
     // [HttpPatch("{projectId}/members/{userId}")]
     // public async Task<IActionResult> ChangeRole(Guid projectId, Guid userId)
