@@ -23,7 +23,9 @@ public class TodosController : ControllerBase
         var todo = new Todo
         {
             ProjectId = projectId,
-            Title = title
+            Title = title,
+            Status = Enums.TodoStatus.Backlog,
+            CreatedAt = DateTime.UtcNow
         };
 
         _db.Todos.Add(todo);

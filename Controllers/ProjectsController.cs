@@ -24,14 +24,15 @@ public class ProjectsController : ControllerBase
         {
             Id = Guid.NewGuid(),
             OwnerId = userId,
-            Name = name
+            Name = name,
+            IsVisible = true
         };
 
         var projectMember = new ProjectMember
         {
             ProjectId = project.Id,
-            UserId = userId
-            //role = owner/admin
+            UserId = userId,
+            Role = Enums.MemberRole.Owner
         };
 
         _db.Projects.Add(project);
@@ -87,8 +88,8 @@ public class ProjectsController : ControllerBase
         var membership = new ProjectMember
         {
             ProjectId = projectId,
-            UserId = userId
-            //role = 
+            UserId = userId,
+            Role = Enums.MemberRole.Contributor
         };
 
         _db.ProjectMembers.Add(membership);

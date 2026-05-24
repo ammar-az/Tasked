@@ -29,7 +29,10 @@ namespace Tasked.Migrations
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false),
                     username = table.Column<string>(type: "text", nullable: false),
-                    org_id = table.Column<Guid>(type: "uuid", nullable: true)
+                    org_id = table.Column<Guid>(type: "uuid", nullable: true),
+                    email = table.Column<string>(type: "text", nullable: false),
+                    password = table.Column<string>(type: "text", nullable: false),
+                    salt = table.Column<string>(type: "text", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -49,7 +52,8 @@ namespace Tasked.Migrations
                     owner_id = table.Column<Guid>(type: "uuid", nullable: false),
                     org_id = table.Column<Guid>(type: "uuid", nullable: true),
                     name = table.Column<string>(type: "text", nullable: false),
-                    description = table.Column<string>(type: "text", nullable: true)
+                    description = table.Column<string>(type: "text", nullable: true),
+                    is_visible = table.Column<bool>(type: "boolean", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -72,7 +76,8 @@ namespace Tasked.Migrations
                 columns: table => new
                 {
                     project_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    user_id = table.Column<Guid>(type: "uuid", nullable: false)
+                    user_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    role = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -99,7 +104,10 @@ namespace Tasked.Migrations
                     project_id = table.Column<Guid>(type: "uuid", nullable: false),
                     title = table.Column<string>(type: "text", nullable: false),
                     description = table.Column<string>(type: "text", nullable: true),
-                    is_complete = table.Column<bool>(type: "boolean", nullable: false)
+                    status = table.Column<int>(type: "integer", nullable: false),
+                    assigned_id = table.Column<Guid>(type: "uuid", nullable: true),
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    issue_no = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -110,6 +118,11 @@ namespace Tasked.Migrations
                         principalTable: "projects",
                         principalColumn: "id",
                         onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "fk_todos_users_assigned_id",
+                        column: x => x.assigned_id,
+                        principalTable: "users",
+                        principalColumn: "id");
                 });
 
             migrationBuilder.CreateIndex(
@@ -140,9 +153,21 @@ namespace Tasked.Migrations
                 column: "owner_id");
 
             migrationBuilder.CreateIndex(
-                name: "ix_todos_project_id",
+                name: "ix_todos_assigned_id",
                 table: "todos",
-                column: "project_id");
+                column: "assigned_id");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_todos_project_id_issue_no",
+                table: "todos",
+                columns: new[] { "project_id", "issue_no" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "ix_users_email",
+                table: "users",
+                column: "email",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "ix_users_org_id",

@@ -16,6 +16,38 @@ public class OrgsController : ControllerBase
         _db = db;
     }
 
+    [HttpPost]
+    public async Task<IActionResult> RegisterOrg(string name)
+    {
+        var org = new Organization
+        {
+            Name = name
+        };
+
+        _db.Organizations.Add(org);
+        await _db.SaveChangesAsync();
+        return Ok(org);
+    }
+
+    [HttpGet("{orgId}")]
+    public async Task<IActionResult> GetOrgById(Guid orgId)
+    {
+        var org = await _db.Organizations
+        .FindAsync(orgId);
+
+        return Ok(org);
+    }
+
+    [HttpDelete("{orgId}")]
+    public async Task<IActionResult> DeleteOrg(Guid orgId)
+    {
+        var org = await _db.Organizations
+        .Where(o => o.Id == orgId)
+        .ExecuteDeleteAsync();
+
+        return Ok(org);
+    }
+
     [HttpGet("{orgId}/projects")]
     public async Task<IActionResult> GetOrgProjects(Guid orgId)
     {
@@ -35,12 +67,5 @@ public class OrgsController : ControllerBase
 
         return Ok(users);
     }
-
-    //post new org
-
-    //get org by name
-
-    //delete org 
-
 
 }

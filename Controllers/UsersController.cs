@@ -18,11 +18,12 @@ public class UsersController : ControllerBase
 
     //register new user
     [HttpPost]
-    public async Task<IActionResult> Register(string username)
+    public async Task<IActionResult> Register(string username, string email)
     {
         var user = new User
         {
-            Username = username
+            Username = username,
+            Email = email
         };
 
         _db.Users.Add(user);
@@ -31,11 +32,10 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet("{userId}")]
-    public async Task<IActionResult> GetUser(Guid userId)
+    public async Task<IActionResult> GetUserById(Guid userId)
     {
         var user = await _db.Users
-        .Where(u => u.Id == userId)
-        .ExecuteDeleteAsync();
+        .FindAsync(userId);
 
         return Ok(user);
     }
@@ -44,7 +44,8 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> DeleteUser(Guid userId)
     {
         var user = await _db.Users
-        .FindAsync(userId);
+        .Where(u => u.Id == userId)
+        .ExecuteDeleteAsync();
 
         return Ok(user);
     }

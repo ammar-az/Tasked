@@ -55,6 +55,10 @@ namespace Tasked.Migrations
                         .HasColumnType("text")
                         .HasColumnName("description");
 
+                    b.Property<bool>("IsVisible")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_visible");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text")
@@ -94,6 +98,10 @@ namespace Tasked.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
+                    b.Property<int>("Role")
+                        .HasColumnType("integer")
+                        .HasColumnName("role");
+
                     b.HasKey("ProjectId", "UserId")
                         .HasName("pk_project_members");
 
@@ -110,17 +118,29 @@ namespace Tasked.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<Guid?>("AssignedID")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assigned_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
                     b.Property<string>("Description")
                         .HasColumnType("text")
                         .HasColumnName("description");
 
-                    b.Property<bool>("IsComplete")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_complete");
+                    b.Property<int>("IssueNo")
+                        .HasColumnType("integer")
+                        .HasColumnName("issue_no");
 
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uuid")
                         .HasColumnName("project_id");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -130,8 +150,12 @@ namespace Tasked.Migrations
                     b.HasKey("Id")
                         .HasName("pk_todos");
 
-                    b.HasIndex("ProjectId")
-                        .HasDatabaseName("ix_todos_project_id");
+                    b.HasIndex("AssignedID")
+                        .HasDatabaseName("ix_todos_assigned_id");
+
+                    b.HasIndex("ProjectId", "IssueNo")
+                        .IsUnique()
+                        .HasDatabaseName("ix_todos_project_id_issue_no");
 
                     b.ToTable("todos", (string)null);
                 });
@@ -143,9 +167,24 @@ namespace Tasked.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("email");
+
                     b.Property<Guid?>("OrgId")
                         .HasColumnType("uuid")
                         .HasColumnName("org_id");
+
+                    b.Property<string>("Password")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("password");
+
+                    b.Property<string>("Salt")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("salt");
 
                     b.Property<string>("Username")
                         .IsRequired()
@@ -154,6 +193,10 @@ namespace Tasked.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_users");
+
+                    b.HasIndex("Email")
+                        .IsUnique()
+                        .HasDatabaseName("ix_users_email");
 
                     b.HasIndex("OrgId")
                         .HasDatabaseName("ix_users_org_id");
@@ -207,12 +250,19 @@ namespace Tasked.Migrations
 
             modelBuilder.Entity("Tasked.Models.Todo", b =>
                 {
+                    b.HasOne("Tasked.Models.User", "Assigned")
+                        .WithMany("AssignedTodos")
+                        .HasForeignKey("AssignedID")
+                        .HasConstraintName("fk_todos_users_assigned_id");
+
                     b.HasOne("Tasked.Models.Project", "Project")
                         .WithMany("Todos")
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_todos_projects_project_id");
+
+                    b.Navigation("Assigned");
 
                     b.Navigation("Project");
                 });
@@ -234,6 +284,8 @@ namespace Tasked.Migrations
 
             modelBuilder.Entity("Tasked.Models.User", b =>
                 {
+                    b.Navigation("AssignedTodos");
+
                     b.Navigation("OwnedProjects");
                 });
 #pragma warning restore 612, 618
