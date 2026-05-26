@@ -13,7 +13,7 @@ public class Todo
     public string? Description {get; set;} 
     public TodoStatus Status {get; set;} 
     public User? Assigned {get; set;}
-    public Guid? AssignedID {get; set;}
+    public Guid? AssignedId {get; set;}
     public DateTime CreatedAt {get; set;}
     public int IssueNo {get; set;}
 }

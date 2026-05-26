@@ -18,8 +18,9 @@ public class UsersController : ControllerBase
     }
 
     //register new user
+    //this is how proper POST should look
     [HttpPost]
-    public async Task<IActionResult> Register(string username, string email)
+    public async Task<ActionResult<UserDto>> Register(string username, string email)
     {
         var user = new User
         {
@@ -29,16 +30,30 @@ public class UsersController : ControllerBase
 
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
-        return Ok(user);
+
+        var dto = new UserDto()
+        {
+            Id = user.Id,
+            Username = user.Username,
+            OrgId = user.OrgId,
+            OrgName = user.Org?.Name,
+            Email = user.Email
+        };
+
+        return CreatedAtAction(
+            nameof(GetUserById), 
+            new { userId = user.Id }, 
+            dto
+        );
     }
 
     //should return: username, org, and email
-    //this is how a proper get should look
+    //this is how a proper GET should look
     [HttpGet("{userId}")]
     public async Task<ActionResult<UserDto>> GetUserById(Guid userId)
     {
-    
         var user = await _db.Users
+        .AsNoTracking()
         .Where(u => u.Id == userId)
         .Select(u => 
             new UserDto()
@@ -60,25 +75,75 @@ public class UsersController : ControllerBase
 
     //only user can delete own acc
     [HttpDelete("{userId}")]
-    public async Task<IActionResult> DeleteUser(Guid userId)
+    public async Task<ActionResult> DeleteUser(Guid userId)
     {
         var user = await _db.Users
         .Where(u => u.Id == userId)
-        .ExecuteDeleteAsync();
+        .Select(u => 
+            new
+            {
+                self = u,
+                owns = u.OwnedProjects.Any()
+            }).SingleOrDefaultAsync();
 
-        return Ok(user);
+        if(user == null)
+        {
+            return NotFound();
+        }
+
+        if(user.owns)
+        {
+            return Conflict("Cannot delete an account with active projects. Transfer ownership or delete projects first.");
+        }
+
+        _db.Users.Remove(user.self);
+        await _db.SaveChangesAsync();
+        
+        return NoContent();
     }
 
 
     //get all projects a user owns 
     [HttpGet("{userId}/projects")]
-    public async Task<IActionResult> GetUserProjects(Guid userId)
+    public async Task<ActionResult<IEnumerable<ProjectDto>>> GetUserProjects(Guid userId)
     {   
         var projects = await _db.Projects
-        .Where(project => project.OwnerId == userId)
-        .ToListAsync();
+        .AsNoTracking()
+        .Where(p => p.OwnerId == userId)
+        .Select(p => 
+            new ProjectDto
+            {
+                Id = p.Id,
+                OwnerId = p.OwnerId,
+                Name = p.Name,
+                Description = p.Description,
+                OrgId = p.OrgId,
+                OrgName = p.Org == null ? null : p.Org.Name
+            }).ToListAsync();
 
         return Ok(projects);
+    }
+
+    //get all projects a user is a member of | either check visibility or make different route for that
+    //might need to be a memberdto rather than projectdto since we might need the role in the project as well
+    [HttpGet("{userId}/memberof")]
+    public async Task<ActionResult<IEnumerable<ProjectDto>>> GetUserMembership(Guid userId)
+    {   
+        var memberships = await _db.ProjectMembers
+        .AsNoTracking()
+        .Where(membership => membership.UserId == userId)
+        .Select(m => 
+        new ProjectDto
+            {
+                Id = m.Project.Id,
+                OwnerId = m.Project.OwnerId,
+                Name = m.Project.Name,
+                Description = m.Project.Description,
+                OrgId = m.Project.OrgId,
+                OrgName = m.Project.Org == null ? null : m.Project.Org.Name
+            }).ToListAsync();
+
+        return Ok(memberships);
     }
 
     //user should be able to change their email, password, and username + leave and join orgs

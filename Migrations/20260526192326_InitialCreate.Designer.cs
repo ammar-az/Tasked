@@ -12,7 +12,7 @@ using Tasked.Data;
 namespace Tasked.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260524203006_InitialCreate")]
+    [Migration("20260526192326_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -61,6 +61,10 @@ namespace Tasked.Migrations
                     b.Property<bool>("IsVisible")
                         .HasColumnType("boolean")
                         .HasColumnName("is_visible");
+
+                    b.Property<int>("IssueCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("issue_count");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -121,7 +125,7 @@ namespace Tasked.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<Guid?>("AssignedID")
+                    b.Property<Guid?>("AssignedId")
                         .HasColumnType("uuid")
                         .HasColumnName("assigned_id");
 
@@ -153,7 +157,7 @@ namespace Tasked.Migrations
                     b.HasKey("Id")
                         .HasName("pk_todos");
 
-                    b.HasIndex("AssignedID")
+                    b.HasIndex("AssignedId")
                         .HasDatabaseName("ix_todos_assigned_id");
 
                     b.HasIndex("ProjectId", "IssueNo")
@@ -255,7 +259,7 @@ namespace Tasked.Migrations
                 {
                     b.HasOne("Tasked.Entities.User", "Assigned")
                         .WithMany("AssignedTodos")
-                        .HasForeignKey("AssignedID")
+                        .HasForeignKey("AssignedId")
                         .HasConstraintName("fk_todos_users_assigned_id");
 
                     b.HasOne("Tasked.Entities.Project", "Project")

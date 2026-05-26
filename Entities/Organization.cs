@@ -7,6 +7,6 @@ public class Organization
 {
     public Guid Id {get; set;}
     public string Name {get; set;} = "";
-    public ICollection<User> Users = [];
-    public ICollection<Project> Projects = [];
+    public ICollection<User> Users {get;} = [];
+    public ICollection<Project> Projects {get;} = [];
 }

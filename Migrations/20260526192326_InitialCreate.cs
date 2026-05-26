@@ -53,7 +53,8 @@ namespace Tasked.Migrations
                     org_id = table.Column<Guid>(type: "uuid", nullable: true),
                     name = table.Column<string>(type: "text", nullable: false),
                     description = table.Column<string>(type: "text", nullable: true),
-                    is_visible = table.Column<bool>(type: "boolean", nullable: false)
+                    is_visible = table.Column<bool>(type: "boolean", nullable: false),
+                    issue_count = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {

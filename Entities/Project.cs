@@ -13,5 +13,6 @@ public class Project
     public string Name {get; set;} = "";
     public string? Description {get; set;}
     public bool IsVisible {get; set;}
+    public int IssueCount {get; set;}
     public ICollection<Todo> Todos {get; set;} = [];
 }

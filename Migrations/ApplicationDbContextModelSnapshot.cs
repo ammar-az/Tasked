@@ -59,6 +59,10 @@ namespace Tasked.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_visible");
 
+                    b.Property<int>("IssueCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("issue_count");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text")
@@ -118,7 +122,7 @@ namespace Tasked.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<Guid?>("AssignedID")
+                    b.Property<Guid?>("AssignedId")
                         .HasColumnType("uuid")
                         .HasColumnName("assigned_id");
 
@@ -150,7 +154,7 @@ namespace Tasked.Migrations
                     b.HasKey("Id")
                         .HasName("pk_todos");
 
-                    b.HasIndex("AssignedID")
+                    b.HasIndex("AssignedId")
                         .HasDatabaseName("ix_todos_assigned_id");
 
                     b.HasIndex("ProjectId", "IssueNo")
@@ -252,7 +256,7 @@ namespace Tasked.Migrations
                 {
                     b.HasOne("Tasked.Entities.User", "Assigned")
                         .WithMany("AssignedTodos")
-                        .HasForeignKey("AssignedID")
+                        .HasForeignKey("AssignedId")
                         .HasConstraintName("fk_todos_users_assigned_id");
 
                     b.HasOne("Tasked.Entities.Project", "Project")
