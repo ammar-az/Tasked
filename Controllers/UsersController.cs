@@ -29,7 +29,14 @@ public class UsersController : ControllerBase
         };
 
         _db.Users.Add(user);
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch(DbUpdateException e)
+        {
+            return Conflict(e.InnerException?.Message);
+        }
 
         var dto = new UserDto()
         {
@@ -97,8 +104,16 @@ public class UsersController : ControllerBase
         }
 
         _db.Users.Remove(user.self);
-        await _db.SaveChangesAsync();
         
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch(DbUpdateException e)
+        {
+            return Conflict(e.InnerException?.Message);
+        }
+
         return NoContent();
     }
 
@@ -148,4 +163,73 @@ public class UsersController : ControllerBase
 
     //user should be able to change their email, password, and username + leave and join orgs
 
+    [HttpPatch("{userId}")]
+    public async Task<ActionResult<UserDto>> UpdateUser(Guid userId, string? username, string? email)
+    {
+        if(username == "")
+        {
+            return BadRequest("Invalid username");
+        }
+
+        //this can actually check for valid email addresses instead eventually
+        if(email == "")
+        {
+            return BadRequest("Invalid email");
+        }
+
+        var user = await _db.Users
+        .Where(u => u.Id == userId)
+        .SingleOrDefaultAsync();
+
+        if(user == null)
+        {
+            return NotFound();
+        }
+
+        user.Username = username ?? user.Username;
+        user.Email = email ?? user.Email;
+        _db.Users.Update(user);
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch(DbUpdateException e)
+        {
+            return Conflict(e.InnerException?.Message);
+        }
+        
+        var dto = new UserDto()
+        {
+            Id = user.Id,
+            Username = user.Username,
+            OrgId = user.OrgId,
+            OrgName = user.Org?.Name,
+            Email = user.Email
+        };
+
+        return Ok(dto);
+    }
+
+    [HttpGet("{userId}/todos")]
+    public async Task<ActionResult<IEnumerable<TodoDto>>> GetUserTodos(Guid userId)
+    {
+        var todos = await _db.Todos
+        .AsNoTracking()
+        .Where(t => t.AssignedId == userId)
+        .Select(t => 
+            new TodoDto
+            {
+                Id = t.Id,
+                ProjectId = t.ProjectId,
+                Title = t.Title,
+                Description = t.Description,
+                Status = t.Status,
+                CreatedAt = t.CreatedAt,
+                Assigned = t.AssignedId,
+                IssueNo = t.IssueNo
+            }).ToListAsync();
+
+        return Ok(todos);
+    }
 }

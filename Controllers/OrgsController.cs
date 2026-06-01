@@ -26,7 +26,15 @@ public class OrgsController : ControllerBase
         };
 
         _db.Organizations.Add(org);
-        await _db.SaveChangesAsync();
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch(DbUpdateException e)
+        {
+            return Conflict(e.InnerException?.Message);
+        }
 
         var dto = new OrgDto()
         {
@@ -100,9 +108,17 @@ public class OrgsController : ControllerBase
         }
 
         _db.Organizations.Remove(org.self);
-        await _db.SaveChangesAsync();
+        
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch(DbUpdateException e)
+        {
+            return Conflict(e.InnerException?.Message);
+        }
 
-        return Ok(org);
+        return NoContent();
     }
 
     [HttpGet("{orgId}/projects")]
@@ -143,5 +159,73 @@ public class OrgsController : ControllerBase
     }
 
     //add/remove users from org 
+    [HttpPatch("{orgId}/users/{userId}")]
+    public async Task<IActionResult> AddUser(Guid orgId, Guid userId)
+    {
+        var user = await _db.Users
+        .Where(u => u.Id == userId)
+        .SingleOrDefaultAsync();
 
+        if(user == null)
+        {
+            return NotFound("User not found");
+        }
+
+        if(user.OrgId != null)
+        {
+            return Conflict("Must leave current organization before joining another");
+        }
+
+        var org = await _db.Organizations
+        .Where(o => o.Id == orgId) 
+        .SingleOrDefaultAsync();
+
+        if(org == null)
+        {
+            return NotFound("Organization not found");
+        }   
+        user.OrgId = orgId;
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch(DbUpdateException e)
+        {
+            return Conflict(e.InnerException?.Message);
+        }
+
+        return Ok();
+    }
+    
+    [HttpPatch("{orgId}/users/{userId}/remove")]
+    public async Task<IActionResult> RemoveUser(Guid orgId, Guid userId)
+    {
+        var user = await _db.Users
+        .Where(u => u.Id == userId)
+        .SingleOrDefaultAsync();
+
+        if(user == null)
+        {
+            return NotFound("User not found");
+        }
+
+        if(user.OrgId != orgId)
+        {
+            return Conflict("User does not belong to the specified organization");
+        }
+
+        user.OrgId = null;
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch(DbUpdateException e)
+        {
+            return Conflict(e.InnerException?.Message);
+        }
+
+        return NoContent();
+    }
 }
