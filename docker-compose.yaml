@@ -1,0 +1,17 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      ConnectionStrings__DefaultConnection: Host=db;Port=5432;Database=tasked;Username=postgres;Password=postgres
+
+  db:
+    image: postgres
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tasked
+    ports:
+      - "5432:5432"
