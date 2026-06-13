@@ -31,8 +31,7 @@ namespace Tasked.Migrations
                     username = table.Column<string>(type: "text", nullable: false),
                     org_id = table.Column<Guid>(type: "uuid", nullable: true),
                     email = table.Column<string>(type: "text", nullable: false),
-                    password = table.Column<string>(type: "text", nullable: false),
-                    salt = table.Column<string>(type: "text", nullable: false)
+                    password = table.Column<string>(type: "text", nullable: false)
                 },
                 constraints: table =>
                 {

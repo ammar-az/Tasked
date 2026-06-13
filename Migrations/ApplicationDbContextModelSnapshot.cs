@@ -17,7 +17,7 @@ namespace Tasked.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.8")
+                .HasAnnotation("ProductVersion", "10.0.9")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -185,11 +185,6 @@ namespace Tasked.Migrations
                         .HasColumnType("text")
                         .HasColumnName("password");
 
-                    b.Property<string>("Salt")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("salt");
-
                     b.Property<string>("Username")
                         .IsRequired()
                         .HasColumnType("text")
@@ -215,7 +210,7 @@ namespace Tasked.Migrations
             modelBuilder.Entity("Tasked.Entities.Project", b =>
                 {
                     b.HasOne("Tasked.Entities.Organization", "Org")
-                        .WithMany()
+                        .WithMany("Projects")
                         .HasForeignKey("OrgId")
                         .HasConstraintName("fk_projects_organizations_org_id");
 
@@ -274,11 +269,18 @@ namespace Tasked.Migrations
             modelBuilder.Entity("Tasked.Entities.User", b =>
                 {
                     b.HasOne("Tasked.Entities.Organization", "Org")
-                        .WithMany()
+                        .WithMany("Users")
                         .HasForeignKey("OrgId")
                         .HasConstraintName("fk_users_organizations_org_id");
 
                     b.Navigation("Org");
+                });
+
+            modelBuilder.Entity("Tasked.Entities.Organization", b =>
+                {
+                    b.Navigation("Projects");
+
+                    b.Navigation("Users");
                 });
 
             modelBuilder.Entity("Tasked.Entities.Project", b =>
