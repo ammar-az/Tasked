@@ -48,6 +48,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         .UseSnakeCaseNamingConvention());
 
 builder.Services.AddScoped<TokenService>();
+builder.Services.AddScoped<AuthService>();
+
 var jwt = builder.Configuration.GetSection("Jwt");
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

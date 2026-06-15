@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Tasked.Data;
 using Tasked.Entities;
 using Tasked.DTOs;
+using Microsoft.AspNetCore.Authorization;
+using Tasked.Jwt;
 
 namespace Tasked.Controllers;
 
@@ -18,41 +20,41 @@ public class UsersController : ControllerBase
     }
 
     //register new user
-    //this is how proper POST should look
-    [HttpPost]
-    public async Task<ActionResult<UserDto>> Register(string username, string email)
-    {
-        var user = new User
-        {
-            Username = username,
-            Email = email
-        };
+    //Remove for Auth? 
+    // [HttpPost]
+    // public async Task<ActionResult<UserDto>> Register(string username, string email)
+    // {
+    //     var user = new User
+    //     {
+    //         Username = username,
+    //         Email = email
+    //     };
 
-        _db.Users.Add(user);
-        try
-        {
-            await _db.SaveChangesAsync();
-        }
-        catch(DbUpdateException e)
-        {
-            return Conflict(e.InnerException?.Message);
-        }
+    //     _db.Users.Add(user);
+    //     try
+    //     {
+    //         await _db.SaveChangesAsync();
+    //     }
+    //     catch(DbUpdateException e)
+    //     {
+    //         return Conflict(e.InnerException?.Message);
+    //     }
 
-        var dto = new UserDto()
-        {
-            Id = user.Id,
-            Username = user.Username,
-            OrgId = user.OrgId,
-            OrgName = user.Org?.Name,
-            Email = user.Email
-        };
+    //     var dto = new UserDto()
+    //     {
+    //         Id = user.Id,
+    //         Username = user.Username,
+    //         OrgId = user.OrgId,
+    //         OrgName = user.Org?.Name,
+    //         Email = user.Email
+    //     };
 
-        return CreatedAtAction(
-            nameof(GetUserById), 
-            new { userId = user.Id }, 
-            dto
-        );
-    }
+    //     return CreatedAtAction(
+    //         nameof(GetUserById), 
+    //         new { userId = user.Id }, 
+    //         dto
+    //     );
+    // }
 
     //should return: username, org, and email
     //this is how a proper GET should look
@@ -81,9 +83,12 @@ public class UsersController : ControllerBase
     }
 
     //only user can delete own acc
-    [HttpDelete("{userId}")]
-    public async Task<ActionResult> DeleteUser(Guid userId)
+    [HttpDelete]
+    [Authorize]
+    public async Task<ActionResult> DeleteUser()
     {
+        var userId = User.GetUserId();
+
         var user = await _db.Users
         .Where(u => u.Id == userId)
         .Select(u => 
@@ -163,9 +168,12 @@ public class UsersController : ControllerBase
 
     //user should be able to change their email, password, and username + leave and join orgs
 
-    [HttpPatch("{userId}")]
-    public async Task<ActionResult<UserDto>> UpdateUser(Guid userId, string? username, string? email)
+    [HttpPatch]
+    [Authorize]
+    public async Task<ActionResult<UserDto>> UpdateUser(string? username, string? email)
     {
+        var userId = User.GetUserId();
+        
         if(username == "")
         {
             return BadRequest("Invalid username");

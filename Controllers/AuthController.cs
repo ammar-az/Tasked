@@ -6,7 +6,7 @@ using Tasked.Data;
 using Tasked.DTOs;
 using Tasked.Entities;
 using Tasked.Jwt;
-using System.Security.Claims;
+//using System.Security.Claims;
 
 namespace Tasked.Controllers;
 
@@ -70,10 +70,12 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
     [HttpGet("me")]
     public async Task<IActionResult> GetCurrentUser()
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userId == null) return Unauthorized();
+        //var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        //if (userId == null) return Unauthorized();
 
-        var user = await _db.Users.FindAsync(Guid.Parse(userId));
+        var userId = User.GetUserId();
+
+        var user = await _db.Users.FindAsync(userId);
         if (user == null) return NotFound();
 
         return Ok(new

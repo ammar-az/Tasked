@@ -1,9 +1,11 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Tasked.Data;
 using Tasked.DTOs;
 using Tasked.Entities;
 using Tasked.Enums;
+using Tasked.Jwt;
 
 namespace Tasked.Controllers;
 
@@ -12,16 +14,21 @@ namespace Tasked.Controllers;
 public class ProjectsController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
+    private readonly AuthService _auth;
 
-    public ProjectsController(ApplicationDbContext db)
+    public ProjectsController(ApplicationDbContext db, AuthService authService)
     {
         _db = db;
+        _auth = authService;
     }
 
     //create project | add org, description, visibility 
     [HttpPost]
-    public async Task<IActionResult> CreateProject(Guid userId, Guid? orgId, string name, string? description, bool? isVisible)
+    [Authorize]
+    public async Task<IActionResult> CreateProject(Guid? orgId, string name, string? description, bool? isVisible)
     {
+        var userId = User.GetUserId();
+
         var project = new Project
         {
             Id = Guid.NewGuid(),
@@ -36,7 +43,7 @@ public class ProjectsController : ControllerBase
         {
             ProjectId = project.Id,
             UserId = userId,
-            Role = Enums.MemberRole.Owner
+            Role = MemberRole.Owner
         };
 
 
@@ -95,15 +102,18 @@ public class ProjectsController : ControllerBase
     
     //Only owner can do this
     [HttpDelete("{projectId}")]
+    [Authorize]
     public async Task<IActionResult> DeleteProject(Guid projectId)
     {
+        var userId = User.GetUserId();
+        
         var deleted = await _db.Projects
-        .Where(p => p.Id == projectId)
+        .Where(p => p.Id == projectId && p.OwnerId == userId)
         .ExecuteDeleteAsync();
 
         if(deleted == 0)
         {
-            return NotFound();
+            return Forbid();
         }
 
         return NoContent();
@@ -111,8 +121,11 @@ public class ProjectsController : ControllerBase
 
     //add member to project
     [HttpPost("{projectId}/members")]
-    public async Task<IActionResult> NewMembership(Guid projectId, Guid userId)
+    [Authorize]
+    public async Task<IActionResult> NewMembership(Guid projectId)
     {
+        var userId = User.GetUserId();
+
         var membership = new ProjectMember
         {
             ProjectId = projectId,
@@ -146,7 +159,7 @@ public class ProjectsController : ControllerBase
 
     //get all members of a project, same visible check as before, 
     [HttpGet("{projectId}/members")]
-        public async Task<IActionResult> GetMembers(Guid projectId)
+    public async Task<IActionResult> GetMembers(Guid projectId)
     {   
         var members = await _db.ProjectMembers
         .AsNoTracking()
@@ -167,8 +180,11 @@ public class ProjectsController : ControllerBase
     //only an admin or owner can remove users other than themselves. Must handle case where owner leaves
     //auth check might be: if issuer wants to remove themselves, allow if not the owner. If issuer wants to remove someone else, check if permitted
     [HttpDelete("{projectId}/members/{userId}")]
+    [Authorize]
     public async Task<IActionResult> LeaveProject(Guid projectId, Guid userId)
     {
+        var issuerId = User.GetUserId();
+        
         var member = await _db.ProjectMembers
         .Where(m => m.ProjectId == projectId && m.UserId == userId)
         .Select(m => new 
@@ -186,7 +202,7 @@ public class ProjectsController : ControllerBase
         }
         //no permissions check done yet, only template to ensure only own account can leave
         //this check doesnt work yet as userID refers to user leaving, issuer will be passed through authcontext when implemented
-        if(member.UserId != userId)
+        if(member.UserId != issuerId || !_auth.AdminPermissions(member.self.Project, issuerId))
         {
             return Forbid();
         }
@@ -220,8 +236,11 @@ public class ProjectsController : ControllerBase
     }
 
     [HttpPatch("{projectId}")]
+    [Authorize]
     public async Task<IActionResult> EditProject(Guid projectId, string? name, string? description, bool? isVisible)
     {
+        var userId = User.GetUserId();
+
         var project = await _db.Projects
         .Where(p => p.Id == projectId)
         .SingleOrDefaultAsync();
@@ -232,6 +251,10 @@ public class ProjectsController : ControllerBase
         }
 
         //permissions check here
+        //this will check for admins too later
+        if(!_auth.OwnsProject(project, userId))
+            return Forbid();
+        
 
         if(name != "")
         {
@@ -263,6 +286,7 @@ public class ProjectsController : ControllerBase
     }
 
     [HttpPatch("{projectId}/members/{userId}")]
+    [Authorize]
     public async Task<IActionResult> ChangeRole(Guid projectId, Guid userId, MemberRole newRole)
     {   
         if(newRole == MemberRole.Owner)
@@ -324,9 +348,11 @@ public class ProjectsController : ControllerBase
     }
 
     [HttpPatch("{projectId}/org/")]
+    [Authorize]
     public async Task<IActionResult> ChangeToOrg(Guid projectId)
     {
         //Only owner can do this
+        var userId = User.GetUserId();
 
         var project = await _db.Projects
             .Where(p => p.Id == projectId)
@@ -338,6 +364,9 @@ public class ProjectsController : ControllerBase
         {
             return NotFound();
         }
+
+        if (!_auth.OwnsProject(project, userId))
+            return Forbid();
 
         if(project.OrgId != null)
         {
@@ -375,10 +404,11 @@ public class ProjectsController : ControllerBase
     }
 
     [HttpPatch("{projectId}/org/remove")]
+    [Authorize]
     public async Task<IActionResult> RemoveFromOrg(Guid projectId)
     {
         //Only owner can do this
-
+        var userId = User.GetUserId();
         var project = await _db.Projects
             .Where(p => p.Id == projectId)
             .SingleOrDefaultAsync();
@@ -392,6 +422,9 @@ public class ProjectsController : ControllerBase
         {
             return NoContent();
         }
+
+        if (!_auth.OwnsProject(project, userId))
+            return Forbid();
 
         project.OrgId = null;
 
@@ -418,9 +451,11 @@ public class ProjectsController : ControllerBase
     }
 
     [HttpPatch("{projectId}/transfer")]
+    [Authorize]
     public async Task<IActionResult> TransferOwnership(Guid projectId, Guid newOwnerId)
     {
         //Only owner can do this
+        var userId = User.GetUserId();
 
         var project = await _db.Projects
         .Where(p => p.Id == projectId)
@@ -431,6 +466,9 @@ public class ProjectsController : ControllerBase
         {
             return NotFound();
         }
+
+        if (!_auth.OwnsProject(project, userId))
+            return Forbid();
 
         if(project.OwnerId == newOwnerId)
         {
