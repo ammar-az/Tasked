@@ -125,8 +125,12 @@ public class UsersController : ControllerBase
 
     //get all projects a user owns 
     [HttpGet("{userId}/projects")]
+    [Authorize]
     public async Task<ActionResult<IEnumerable<ProjectDto>>> GetUserProjects(Guid userId)
     {   
+        var requesterId = User.GetUserId();
+        //Vis check, skipped if self
+        
         var projects = await _db.Projects
         .AsNoTracking()
         .Where(p => p.OwnerId == userId)
@@ -144,11 +148,13 @@ public class UsersController : ControllerBase
         return Ok(projects);
     }
 
-    //get all projects a user is a member of | either check visibility or make different route for that
-    //might need to be a memberdto rather than projectdto since we might need the role in the project as well
     [HttpGet("{userId}/memberof")]
+    [Authorize]
     public async Task<ActionResult<IEnumerable<ProjectDto>>> GetUserMembership(Guid userId)
     {   
+        var requesterId = User.GetUserId();
+        //Vis check
+
         var memberships = await _db.ProjectMembers
         .AsNoTracking()
         .Where(membership => membership.UserId == userId)
@@ -219,9 +225,12 @@ public class UsersController : ControllerBase
         return Ok(dto);
     }
 
-    [HttpGet("{userId}/todos")]
-    public async Task<ActionResult<IEnumerable<TodoDto>>> GetUserTodos(Guid userId)
+    [HttpGet("todos")]
+    [Authorize]
+    public async Task<ActionResult<IEnumerable<TodoDto>>> GetUserTodos()
     {
+        var userId = User.GetUserId();
+
         var todos = await _db.Todos
         .AsNoTracking()
         .Where(t => t.AssignedId == userId)

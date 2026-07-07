@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Tasked.Data;
 using Tasked.DTOs;
 using Tasked.Entities;
+using Tasked.Jwt;
 
 namespace Tasked.Controllers;
 
@@ -159,9 +161,12 @@ public class OrgsController : ControllerBase
     }
 
     //add/remove users from org 
-    [HttpPatch("{orgId}/users/{userId}")]
-    public async Task<IActionResult> AddUser(Guid orgId, Guid userId)
+    [HttpPatch("{orgId}/add-user")]
+    [Authorize]
+    public async Task<IActionResult> AddUser(Guid orgId)
     {
+        var userId = User.GetUserId();
+
         var user = await _db.Users
         .Where(u => u.Id == userId)
         .SingleOrDefaultAsync();
@@ -198,9 +203,12 @@ public class OrgsController : ControllerBase
         return Ok();
     }
     
-    [HttpPatch("{orgId}/users/{userId}/remove")]
-    public async Task<IActionResult> RemoveUser(Guid orgId, Guid userId)
+    [HttpPatch("{orgId}/remove-user")]
+    [Authorize]
+    public async Task<IActionResult> RemoveUser(Guid orgId)
     {
+        var userId = User.GetUserId();
+
         var user = await _db.Users
         .Where(u => u.Id == userId)
         .SingleOrDefaultAsync();

@@ -1,9 +1,11 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Tasked.Data;
 using Tasked.DTOs;
 using Tasked.Entities;
 using Tasked.Enums;
+using Tasked.Jwt;
 
 namespace Tasked.Controllers;
 
@@ -75,8 +77,12 @@ public class TodosController : ControllerBase
     }
 
     [HttpGet("projects/{projectId}")]
+    [Authorize]
     public  async Task<IActionResult> GetProjectTodos(Guid projectId)
     {   
+        var requesterId = User.GetUserId();
+        // vis check
+
         var todos = await _db.Todos
         .AsNoTracking()
         .Where(todo => todo.ProjectId == projectId)
@@ -95,100 +101,14 @@ public class TodosController : ControllerBase
 
         return Ok(todos);
     }
-    
-    [HttpGet("projects/{projectId}/backlog")]
-    public  async Task<IActionResult> GetProjectBacklog(Guid projectId)
-    {   
-        var todos = await _db.Todos
-        .AsNoTracking()
-        .Where(todo => todo.ProjectId == projectId && todo.Status == TodoStatus.Backlog)
-        .Select(t => 
-            new TodoDto()
-            {
-                Id = t.Id,
-                ProjectId = t.ProjectId,
-                Title = t.Title,
-                Description = t.Description,
-                Status = t.Status,
-                CreatedAt = t.CreatedAt,
-                Assigned = t.AssignedId,
-                IssueNo = t.IssueNo
-            }).ToListAsync();
-
-        return Ok(todos);
-    }
-
-    [HttpGet("projects/{projectId}/ongoing")]
-    public  async Task<IActionResult> GetProjectOngoing(Guid projectId)
-    {   
-        var todos = await _db.Todos
-        .AsNoTracking()
-        .Where(todo => todo.ProjectId == projectId && todo.Status == TodoStatus.Inprogress)
-        .Select(t => 
-            new TodoDto()
-            {
-                Id = t.Id,
-                ProjectId = t.ProjectId,
-                Title = t.Title,
-                Description = t.Description,
-                Status = t.Status,
-                CreatedAt = t.CreatedAt,
-                Assigned = t.AssignedId,
-                IssueNo = t.IssueNo
-            }).ToListAsync();
-
-        return Ok(todos);
-    }
-
-
-    //get all completed todos for a project
-    [HttpGet("projects/{projectId}/completed")]
-    public  async Task<IActionResult> GetProjectCompleted(Guid projectId)
-    {   
-        var todos = await _db.Todos
-        .AsNoTracking()
-        .Where(todo => todo.ProjectId == projectId && todo.Status == TodoStatus.Completed)
-        .Select(t => 
-            new TodoDto()
-            {
-                Id = t.Id,
-                ProjectId = t.ProjectId,
-                Title = t.Title,
-                Description = t.Description,
-                Status = t.Status,
-                CreatedAt = t.CreatedAt,
-                Assigned = t.AssignedId,
-                IssueNo = t.IssueNo
-            }).ToListAsync();
-
-        return Ok(todos);
-    }
-
-    [HttpGet("projects/{projectId}/archived")]
-    public  async Task<IActionResult> GetProjectArchived(Guid projectId)
-    {   
-        var todos = await _db.Todos
-        .AsNoTracking()
-        .Where(todo => todo.ProjectId == projectId && todo.Status == TodoStatus.Archived)
-        .Select(t => 
-            new TodoDto()
-            {
-                Id = t.Id,
-                ProjectId = t.ProjectId,
-                Title = t.Title,
-                Description = t.Description,
-                Status = t.Status,
-                CreatedAt = t.CreatedAt,
-                Assigned = t.AssignedId,
-                IssueNo = t.IssueNo
-            }).ToListAsync();
-
-        return Ok(todos);
-    }
 
     [HttpGet("projects/{projectId}/assigned/{userId}")]
+    [Authorize]
     public async Task<IActionResult> GetProjectAssigned(Guid projectId, Guid userId)
     {
+        var requesterId = User.GetUserId();
+        //vis check
+
         var membership = await _db.ProjectMembers
         .Where(m => m.UserId == userId && m.ProjectId == projectId)
         .SingleOrDefaultAsync();
@@ -219,8 +139,12 @@ public class TodosController : ControllerBase
 
     //anyone can archive a todo, can anyone delete?
     [HttpDelete("{todoId}")]
+    [Authorize]
     public async Task<IActionResult> DeleteTodo(Guid todoId)
     {
+        var userId = User.GetUserId();
+        // permission check
+        
         var deleted = await _db.Todos
         .Where(t => t.Id == todoId)
         .ExecuteDeleteAsync();
@@ -234,8 +158,12 @@ public class TodosController : ControllerBase
     }
 
     [HttpGet("{todoId}")]
+    [Authorize]
     public async Task<IActionResult> GetTodo(Guid todoId)
     {
+        var userId = User.GetUserId();
+        //vis check
+        
         var todo = await _db.Todos
         .AsNoTracking()
         .Where(t => t.Id == todoId)
@@ -262,8 +190,12 @@ public class TodosController : ControllerBase
 
     //assign user to a todo
     [HttpPatch("{todoId}/assign/{userId}")]
+    [Authorize]
     public async Task<IActionResult> AssignTodo(Guid todoId, Guid userId)
     {
+        var requesterId = User.GetUserId();
+        // permission check
+
         var todo = await _db.Todos
         .Where(t => t.Id == todoId)
         .SingleOrDefaultAsync();
@@ -318,8 +250,12 @@ public class TodosController : ControllerBase
 
     //update status of todo 
     [HttpPatch("{todoId}/status")]
+    [Authorize]
     public async Task<IActionResult> UpdateTodoStatus(Guid todoId, TodoStatus status)
      {
+        var requesterId = User.GetUserId();
+        // permission check
+
         if(!Enum.IsDefined(status))
         {
             return BadRequest("Invalid status");
@@ -374,8 +310,12 @@ public class TodosController : ControllerBase
 
     //patch Title, description, maybe timestamp to bump
     [HttpPatch("{todoId}")]
+    [Authorize]
     public async Task<IActionResult> UpdateTodo(Guid todoId, string? title, string? description, TodoStatus? status)
     {
+
+        var userId = User.GetUserId();
+        //permission check
 
         if((title == null || title == "") && description == null && status == null)
         {

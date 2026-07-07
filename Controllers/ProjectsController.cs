@@ -77,8 +77,13 @@ public class ProjectsController : ControllerBase
 
     //Should only succeed if public, private but member of org, or private but member
     [HttpGet("{projectId}")]
+    [Authorize]
     public async Task<IActionResult> GetProject(Guid projectId)
     {
+
+        var requesterId = User.GetUserId();
+        //vis check
+
         var project = await _db.Projects
         .AsNoTracking()
         .Where(p => p.Id == projectId)
@@ -159,8 +164,12 @@ public class ProjectsController : ControllerBase
 
     //get all members of a project, same visible check as before, 
     [HttpGet("{projectId}/members")]
+    [Authorize]
     public async Task<IActionResult> GetMembers(Guid projectId)
     {   
+        var requesterId = User.GetUserId();
+        //vis check
+
         var members = await _db.ProjectMembers
         .AsNoTracking()
         .Where(member => member.ProjectId == projectId)
@@ -200,8 +209,8 @@ public class ProjectsController : ControllerBase
         {
             return NotFound();
         }
-        //no permissions check done yet, only template to ensure only own account can leave
-        //this check doesnt work yet as userID refers to user leaving, issuer will be passed through authcontext when implemented
+
+        //no permissions check done yet, only template to ensure only own account can leave for now
         if(member.UserId != issuerId || !_auth.AdminPermissions(member.self.Project, issuerId))
         {
             return Forbid();
