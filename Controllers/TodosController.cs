@@ -23,7 +23,8 @@ public class TodosController : ControllerBase
     //all of these should be checking for visibility at least
     //create task, should check user is a contributor or higher in project to do so
     [HttpPost("projects/{projectId}")]
-    public async Task<IActionResult> CreateTodo(Guid projectId, string title, string? description)
+    //DTO here
+    public async Task<IActionResult> CreateTodo(TodoRequest request, Guid projectId)
     {
         await using var transaction = await _db.Database.BeginTransactionAsync();
 
@@ -36,9 +37,9 @@ public class TodosController : ControllerBase
         var todo = new Todo
         {
             ProjectId = projectId,
-            Title = title,
-            Description = description,
-            Status = TodoStatus.Backlog,
+            Title = request.Title,
+            Description = request.Description,
+            Status = request.Status,
             CreatedAt = DateTime.UtcNow,
             IssueNo = project.IssueCount + 1,
         };
@@ -191,6 +192,7 @@ public class TodosController : ControllerBase
     //assign user to a todo
     [HttpPatch("{todoId}/assign/{userId}")]
     [Authorize]
+    //Make DTO?
     public async Task<IActionResult> AssignTodo(Guid todoId, Guid userId)
     {
         var requesterId = User.GetUserId();
@@ -311,13 +313,14 @@ public class TodosController : ControllerBase
     //patch Title, description, maybe timestamp to bump
     [HttpPatch("{todoId}")]
     [Authorize]
-    public async Task<IActionResult> UpdateTodo(Guid todoId, string? title, string? description, TodoStatus? status)
+    //DTO here
+    public async Task<IActionResult> UpdateTodo(TodoUpdateRequest request, Guid todoId)
     {
 
         var userId = User.GetUserId();
         //permission check
 
-        if((title == null || title == "") && description == null && status == null)
+        if((request.Title == null || request.Title == "") && request.Description == null && request.Status == null && request.Assigned == null && !request.Unassign)
         {
             return BadRequest("Must update at least one field.");
         }
@@ -331,13 +334,13 @@ public class TodosController : ControllerBase
             return NotFound("Task not found");
         }
         
-        if(title != "")
+        if(request.Title != "")
         {
-            todo.Title = title ?? todo.Title;        
+            todo.Title = request.Title ?? todo.Title;        
         }
 
-        todo.Description = description ?? todo.Description;
-        todo.Status = status ?? todo.Status;
+        todo.Description = request.Description ?? todo.Description;
+        todo.Status = request.Status ?? todo.Status;
 
         try
         {

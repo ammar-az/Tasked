@@ -176,8 +176,16 @@ public class UsersController : ControllerBase
 
     [HttpPatch]
     [Authorize]
-    public async Task<ActionResult<UserDto>> UpdateUser(string? username, string? email)
+    public async Task<ActionResult<UserDto>> UpdateUser(UserUpdateRequest request)
     {
+        var username = request.Username;
+        var email = request.Email;
+
+        if(username == null && email == null)
+        {
+            return BadRequest("No fields to update");
+        }
+    
         var userId = User.GetUserId();
         
         if(username == "")

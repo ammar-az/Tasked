@@ -25,18 +25,19 @@ public class ProjectsController : ControllerBase
     //create project | add org, description, visibility 
     [HttpPost]
     [Authorize]
-    public async Task<IActionResult> CreateProject(Guid? orgId, string name, string? description, bool? isVisible)
+    //request dto here
+    public async Task<IActionResult> CreateProject(ProjectRequest request)
     {
         var userId = User.GetUserId();
 
         var project = new Project
         {
             Id = Guid.NewGuid(),
-            OrgId = orgId,
+            OrgId = request.OrgId,
             OwnerId = userId,
-            Name = name,
-            Description = description,
-            IsVisible = isVisible ?? true
+            Name = request.Name,
+            Description = request.Description,
+            IsVisible = request.IsVisible
         };
 
         var projectMember = new ProjectMember
@@ -45,7 +46,6 @@ public class ProjectsController : ControllerBase
             UserId = userId,
             Role = MemberRole.Owner
         };
-
 
         _db.Projects.Add(project);
         _db.ProjectMembers.Add(projectMember);
@@ -65,7 +65,8 @@ public class ProjectsController : ControllerBase
             OwnerId = project.OwnerId,
             Name = project.Name,
             Description = project.Description,
-            OrgId = project.OrgId
+            OrgId = project.OrgId,
+            IsVisible = project.IsVisible
         };
 
         return CreatedAtAction(
@@ -94,7 +95,8 @@ public class ProjectsController : ControllerBase
                 OwnerId = p.OwnerId,
                 Name = p.Name,
                 Description = p.Description,
-                OrgId = p.OrgId
+                OrgId = p.OrgId,
+                IsVisible = p.IsVisible
             }).SingleOrDefaultAsync();
 
         if(project == null)
@@ -152,6 +154,8 @@ public class ProjectsController : ControllerBase
         {
             ProjectId = membership.ProjectId,
             UserId = membership.UserId,
+            Username = User.Identity?.Name ?? "",
+            ProjectName = "you forgot to check project name :)",
             Role = membership.Role
         };
 
@@ -244,14 +248,14 @@ public class ProjectsController : ControllerBase
         return NoContent();
     }
 
-    [HttpPatch("{projectId}")]
+    [HttpPatch("EditProject")]
     [Authorize]
-    public async Task<IActionResult> EditProject(Guid projectId, string? name, string? description, bool? isVisible)
+    public async Task<IActionResult> EditProject(ProjectDto request)
     {
         var userId = User.GetUserId();
 
         var project = await _db.Projects
-        .Where(p => p.Id == projectId)
+        .Where(p => p.Id == request.Id)
         .SingleOrDefaultAsync();
 
         if(project == null)
@@ -265,13 +269,13 @@ public class ProjectsController : ControllerBase
             return Forbid();
         
 
-        if(name != "")
+        if(request.Name != "")
         {
-            project.Name = name ?? project.Name;
+            project.Name = request.Name ?? project.Name;
         }
 
-        project.Description = description ?? project.Description;
-        project.IsVisible = isVisible ?? project.IsVisible;
+        project.Description = request.Description ?? project.Description;
+        project.IsVisible = request.IsVisible;
 
         try
         {
@@ -296,6 +300,7 @@ public class ProjectsController : ControllerBase
 
     [HttpPatch("{projectId}/members/{userId}")]
     [Authorize]
+    //DTO here?
     public async Task<IActionResult> ChangeRole(Guid projectId, Guid userId, MemberRole newRole)
     {   
         if(newRole == MemberRole.Owner)
@@ -461,6 +466,7 @@ public class ProjectsController : ControllerBase
 
     [HttpPatch("{projectId}/transfer")]
     [Authorize]
+    //DTO here?
     public async Task<IActionResult> TransferOwnership(Guid projectId, Guid newOwnerId)
     {
         //Only owner can do this

@@ -2,14 +2,13 @@ using Tasked.Enums;
 
 namespace Tasked.DTOs;
 
-public class MemberDto
+public record MemberDto
 {
-    public Guid UserId {get; set;}
-    public string Username {get; set;} = "";
-    public Guid ProjectId {get; set;}
-    public string ProjectName {get; set;} = "";
-    public MemberRole Role {get; set;}
-    
-    public Guid? OrgId {get; set;}
-    public string? OrgName {get; set;}
+    required public Guid UserId {get; init;}
+    required public string Username {get; init;}
+    required public Guid ProjectId {get; init;}
+    required public string ProjectName {get; init;}
+    required public MemberRole Role {get; init;}
+    public Guid? OrgId {get; init;}    
+    public string? OrgName {get; init;}
 }
