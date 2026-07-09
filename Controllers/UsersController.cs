@@ -4,7 +4,7 @@ using Tasked.Data;
 using Tasked.Entities;
 using Tasked.DTOs;
 using Microsoft.AspNetCore.Authorization;
-using Tasked.Jwt;
+using Tasked.Services;
 
 namespace Tasked.Controllers;
 
@@ -139,10 +139,14 @@ public class UsersController : ControllerBase
             {
                 Id = p.Id,
                 OwnerId = p.OwnerId,
+                OwnerName = p.Owner.Username,
                 Name = p.Name,
                 Description = p.Description,
                 OrgId = p.OrgId,
-                OrgName = p.Org == null ? null : p.Org.Name
+                OrgName = p.Org == null ? null : p.Org.Name,
+                CreatedAt = p.CreatedAt,
+                IsVisible = p.IsVisible,
+                JoinPolicy = p.JoinPolicy
             }).ToListAsync();
 
         return Ok(projects);
@@ -164,9 +168,13 @@ public class UsersController : ControllerBase
                 Id = m.Project.Id,
                 OwnerId = m.Project.OwnerId,
                 Name = m.Project.Name,
+                OwnerName = m.Project.Owner.Username,
                 Description = m.Project.Description,
                 OrgId = m.Project.OrgId,
-                OrgName = m.Project.Org == null ? null : m.Project.Org.Name
+                OrgName = m.Project.Org == null ? null : m.Project.Org.Name,
+                JoinPolicy = m.Project.JoinPolicy,
+                CreatedAt = m.Project.CreatedAt,
+                IsVisible = m.Project.IsVisible
             }).ToListAsync();
 
         return Ok(memberships);
@@ -247,6 +255,7 @@ public class UsersController : ControllerBase
             {
                 Id = t.Id,
                 ProjectId = t.ProjectId,
+                ProjectName = t.Project.Name,
                 Title = t.Title,
                 Description = t.Description,
                 Status = t.Status,

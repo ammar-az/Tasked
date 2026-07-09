@@ -5,7 +5,7 @@ using Tasked.Data;
 using Tasked.DTOs;
 using Tasked.Entities;
 using Tasked.Enums;
-using Tasked.Jwt;
+using Tasked.Services;
 
 namespace Tasked.Controllers;
 
@@ -14,12 +14,12 @@ namespace Tasked.Controllers;
 public class ProjectsController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
-    private readonly AuthService _auth;
+    private readonly ProjectService _auth;
 
-    public ProjectsController(ApplicationDbContext db, AuthService authService)
+    public ProjectsController(ApplicationDbContext db, ProjectService projectService)
     {
         _db = db;
-        _auth = authService;
+        _auth = projectService;
     }
 
     //create project | add org, description, visibility 
@@ -37,14 +37,17 @@ public class ProjectsController : ControllerBase
             OwnerId = userId,
             Name = request.Name,
             Description = request.Description,
-            IsVisible = request.IsVisible
+            IsVisible = request.IsVisible,
+            JoinPolicy = request.JoinPolicy,
+            CreatedAt = DateTime.UtcNow
         };
 
         var projectMember = new ProjectMember
         {
             ProjectId = project.Id,
             UserId = userId,
-            Role = MemberRole.Owner
+            Role = MemberRole.Owner,
+            JoinTime = DateTime.UtcNow
         };
 
         _db.Projects.Add(project);
@@ -63,10 +66,14 @@ public class ProjectsController : ControllerBase
         {
             Id = project.Id,
             OwnerId = project.OwnerId,
+            OwnerName = project.Owner.Username,
             Name = project.Name,
             Description = project.Description,
             OrgId = project.OrgId,
-            IsVisible = project.IsVisible
+            OrgName = project.Org?.Name,
+            IsVisible = project.IsVisible,
+            JoinPolicy = project.JoinPolicy,
+            CreatedAt = project.CreatedAt
         };
 
         return CreatedAtAction(
@@ -78,33 +85,41 @@ public class ProjectsController : ControllerBase
 
     //Should only succeed if public, private but member of org, or private but member
     [HttpGet("{projectId}")]
-    [Authorize]
     public async Task<IActionResult> GetProject(Guid projectId)
     {
 
-        var requesterId = User.GetUserId();
-        //vis check
+        var requesterId = User.GetNullableUserId();
 
-        var project = await _db.Projects
+        var p = await _db.Projects
         .AsNoTracking()
         .Where(p => p.Id == projectId)
-        .Select(p => 
-            new ProjectDto()
-            {
-                Id = p.Id,
-                OwnerId = p.OwnerId,
-                Name = p.Name,
-                Description = p.Description,
-                OrgId = p.OrgId,
-                IsVisible = p.IsVisible
-            }).SingleOrDefaultAsync();
+        .Include(p => p.Owner)
+        .SingleOrDefaultAsync();
 
-        if(project == null)
+        if(p == null)
         {
             return NotFound();
-        }
+        }  
 
-        return Ok(project);
+        if(!await _auth.CanView(p, requesterId))
+        {
+            return NotFound();
+        } 
+
+        var dto = new ProjectDto()
+        {
+            Id = p.Id,
+            OwnerId = p.OwnerId,
+            OwnerName = p.Owner.Username,
+            Name = p.Name,
+            Description = p.Description,
+            OrgId = p.OrgId,
+            IsVisible = p.IsVisible,
+            JoinPolicy = p.JoinPolicy,
+            CreatedAt = p.CreatedAt
+        };
+
+        return Ok(dto);
     }
     
     //Only owner can do this
@@ -156,7 +171,8 @@ public class ProjectsController : ControllerBase
             UserId = membership.UserId,
             Username = User.Identity?.Name ?? "",
             ProjectName = "you forgot to check project name :)",
-            Role = membership.Role
+            Role = membership.Role,
+            JoinTime = membership.JoinTime
         };
 
         return CreatedAtAction(
@@ -168,7 +184,7 @@ public class ProjectsController : ControllerBase
 
     //get all members of a project, same visible check as before, 
     [HttpGet("{projectId}/members")]
-    [Authorize]
+    [Authorize] //Maybe don't auth? If users not logged in can see projects, why not their members as well?
     public async Task<IActionResult> GetMembers(Guid projectId)
     {   
         var requesterId = User.GetUserId();
@@ -184,7 +200,8 @@ public class ProjectsController : ControllerBase
                 Username = m.User.Username,
                 ProjectId = m.ProjectId,
                 ProjectName = m.Project.Name,
-                Role = m.Role
+                Role = m.Role,
+                JoinTime = m.JoinTime
             }).ToListAsync();
 
         return Ok(members);
@@ -192,11 +209,11 @@ public class ProjectsController : ControllerBase
 
     //only an admin or owner can remove users other than themselves. Must handle case where owner leaves
     //auth check might be: if issuer wants to remove themselves, allow if not the owner. If issuer wants to remove someone else, check if permitted
-    [HttpDelete("{projectId}/members/{userId}")]
+    [HttpDelete("{projectId}/leave")]
     [Authorize]
-    public async Task<IActionResult> LeaveProject(Guid projectId, Guid userId)
+    public async Task<IActionResult> LeaveProject(Guid projectId)
     {
-        var issuerId = User.GetUserId();
+        var userId = User.GetUserId();
         
         var member = await _db.ProjectMembers
         .Where(m => m.ProjectId == projectId && m.UserId == userId)
@@ -212,12 +229,6 @@ public class ProjectsController : ControllerBase
         if(member == null)
         {
             return NotFound();
-        }
-
-        //no permissions check done yet, only template to ensure only own account can leave for now
-        if(member.UserId != issuerId || !_auth.AdminPermissions(member.self.Project, issuerId))
-        {
-            return Forbid();
         }
 
         if(member.Role == MemberRole.Owner)
@@ -246,6 +257,75 @@ public class ProjectsController : ControllerBase
         }
 
         return NoContent();
+    }
+
+    [HttpPatch("{projectId}/bans/{userId}")]
+    [Authorize]
+    public async Task<IActionResult> BanMember(Guid projectId, Guid userId)
+    {
+        var issuerId = User.GetUserId();
+
+        var permitted = await _auth.AdminPermissions(projectId, issuerId);
+
+        if(!permitted) return Forbid();
+        
+
+        var member = await _db.ProjectMembers
+        .Where(m => m.ProjectId == projectId && m.UserId == userId)
+        .Select(m => new 
+            {
+                self = m,
+                m.UserId,
+                m.User.Username,
+                m.ProjectId,
+                ProjectName = m.Project.Name,
+                m.Role
+            })
+        .SingleOrDefaultAsync();
+
+        if(member == null)
+        {
+            return NotFound("No such membership");
+        }
+
+        if(member.Role == MemberRole.Owner)
+        {
+            return Conflict("Cannot ban owner, ownership must be transferred");
+        }
+
+        //permissions check here: owner: any, admin: contributor and below only, other: immediately reject
+
+        member.self.Role = MemberRole.Banned;
+
+        var todos = await _db.Todos
+        .Where(todo => todo.ProjectId == projectId && todo.AssignedId == userId)
+        .ToListAsync();
+
+        foreach(var todo in todos)
+        {
+            todo.AssignedId = null;
+        }
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch(DbUpdateException e)
+        {
+            return Conflict(e.InnerException?.Message);
+        }
+
+        var dto = new MemberDto()
+        {
+            UserId = member.UserId,
+            Username = member.Username,
+            ProjectId = member.ProjectId,
+            ProjectName = member.ProjectName,
+            JoinTime = DateTime.Now,
+            Role = MemberRole.Banned
+        };
+
+        return Ok(dto);
     }
 
     [HttpPatch("EditProject")]
@@ -290,9 +370,14 @@ public class ProjectsController : ControllerBase
         {
             Id = project.Id,
             OwnerId = project.OwnerId,
+            OwnerName = project.Owner.Username,
             Name = project.Name,
             Description = project.Description,
-            OrgId = project.OrgId
+            OrgId = project.OrgId,
+            OrgName = project.Org?.Name,
+            IsVisible = project.IsVisible,
+            JoinPolicy = project.JoinPolicy,
+            CreatedAt = project.CreatedAt
         };
 
         return Ok(dto);
@@ -319,7 +404,8 @@ public class ProjectsController : ControllerBase
                 m.User.Username,
                 m.ProjectId,
                 ProjectName = m.Project.Name,
-                m.Role
+                m.Role,
+                m.JoinTime
             })
         .SingleOrDefaultAsync();
 
@@ -355,6 +441,7 @@ public class ProjectsController : ControllerBase
             Username = member.Username,
             ProjectId = member.ProjectId,
             ProjectName = member.ProjectName,
+            JoinTime = member.JoinTime,
             Role = newRole
         };
 
@@ -408,10 +495,14 @@ public class ProjectsController : ControllerBase
         {
             Id = project.Id,
             OwnerId = project.OwnerId,
+            OwnerName = project.Owner.Username,
             Name = project.Name,
             Description = project.Description,
             OrgId = project.OrgId,
-            OrgName = project.Org?.Name
+            OrgName = project.Org?.Name,
+            CreatedAt = project.CreatedAt,
+            IsVisible = project.IsVisible,
+            JoinPolicy = project.JoinPolicy
         };
 
         return Ok(dto);
@@ -455,10 +546,14 @@ public class ProjectsController : ControllerBase
         {
             Id = project.Id,
             OwnerId = project.OwnerId,
+            OwnerName = project.Owner.Username,
             Name = project.Name,
             Description = project.Description,
-            OrgId = null,
-            OrgName = null
+            OrgId = project.OrgId,
+            OrgName = project.Org?.Name,
+            CreatedAt = project.CreatedAt,
+            IsVisible = project.IsVisible,
+            JoinPolicy = project.JoinPolicy
         };
 
         return Ok(dto);
@@ -531,10 +626,14 @@ public class ProjectsController : ControllerBase
         {
             Id = project.Id,
             OwnerId = project.OwnerId,
+            OwnerName = project.Owner.Username,
             Name = project.Name,
             Description = project.Description,
             OrgId = project.OrgId,
-            OrgName = project.Org?.Name
+            OrgName = project.Org?.Name,
+            CreatedAt = project.CreatedAt,
+            IsVisible = project.IsVisible,
+            JoinPolicy = project.JoinPolicy
         };
 
         return Ok(dto);

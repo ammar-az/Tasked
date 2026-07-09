@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Tasked.Data;
 using Tasked.DTOs;
 using Tasked.Entities;
-using Tasked.Jwt;
+using Tasked.Services;
 
 namespace Tasked.Controllers;
 
@@ -134,10 +134,14 @@ public class OrgsController : ControllerBase
             {
                 Id = p.Id,
                 OwnerId = p.OwnerId,
+                OwnerName = p.Owner.Username,
                 Name = p.Name,
                 Description = p.Description,
                 OrgId = p.OrgId,
-                OrgName = p.Org == null ? null : p.Org.Name
+                OrgName = p.Org == null ? null : p.Org.Name,
+                CreatedAt = p.CreatedAt,
+                IsVisible = p.IsVisible,
+                JoinPolicy = p.JoinPolicy
             }).ToListAsync();
 
         return Ok(projects);

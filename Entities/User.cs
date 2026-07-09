@@ -14,4 +14,5 @@ public class User
     public string Password {get; set;} = "";
     public ICollection<Project> OwnedProjects {get;} = [];
     public ICollection<Todo> AssignedTodos {get;} = [];
+    public ICollection<Todo> CreatedTodos {get;} = [];
 }

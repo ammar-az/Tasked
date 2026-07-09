@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Tasked.Enums;
 
 namespace Tasked.Entities;
 
@@ -14,5 +15,7 @@ public class Project
     public string? Description {get; set;}
     public bool IsVisible {get; set;}
     public int IssueCount {get; set;}
+    public JoinPolicy JoinPolicy {get; set;}
+    public DateTime CreatedAt {get; set;}
     public ICollection<Todo> Todos {get; set;} = [];
 }

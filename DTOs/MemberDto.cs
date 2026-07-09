@@ -9,6 +9,7 @@ public record MemberDto
     required public Guid ProjectId {get; init;}
     required public string ProjectName {get; init;}
     required public MemberRole Role {get; init;}
+    required public DateTime JoinTime {get; init;}
     public Guid? OrgId {get; init;}    
     public string? OrgName {get; init;}
 }

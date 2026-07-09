@@ -5,7 +5,7 @@ using Tasked.Data;
 using Tasked.DTOs;
 using Tasked.Entities;
 using Tasked.Enums;
-using Tasked.Jwt;
+using Tasked.Services;
 
 namespace Tasked.Controllers;
 
@@ -62,12 +62,15 @@ public class TodosController : ControllerBase
         {
             Id = todo.Id,
             ProjectId = todo.ProjectId,
+            ProjectName = todo.Project.Name,
             Title = todo.Title,
             Description = todo.Description,
             Status = todo.Status,
             CreatedAt = todo.CreatedAt,
             Assigned = todo.AssignedId,
-            IssueNo = todo.IssueNo
+            IssueNo = todo.IssueNo,
+            CreatedBy = todo.CreatedById,
+            CreatedByName = todo.CreatedBy?.Username
         };
 
         return CreatedAtAction(
@@ -92,12 +95,15 @@ public class TodosController : ControllerBase
             {
                 Id = t.Id,
                 ProjectId = t.ProjectId,
+                ProjectName = t.Project.Name,
                 Title = t.Title,
                 Description = t.Description,
                 Status = t.Status,
                 CreatedAt = t.CreatedAt,
                 Assigned = t.AssignedId,
-                IssueNo = t.IssueNo
+                IssueNo = t.IssueNo,
+                CreatedBy = t.CreatedById,
+                CreatedByName = t.CreatedBy == null ? null : t.CreatedBy.Username
             }).ToListAsync();
 
         return Ok(todos);
@@ -127,12 +133,15 @@ public class TodosController : ControllerBase
             {
                 Id = t.Id,
                 ProjectId = t.ProjectId,
+                ProjectName = t.Project.Name,
                 Title = t.Title,
                 Description = t.Description,
                 Status = t.Status,
                 CreatedAt = t.CreatedAt,
                 Assigned = t.AssignedId,
-                IssueNo = t.IssueNo
+                IssueNo = t.IssueNo,
+                CreatedBy = t.CreatedById,
+                CreatedByName = t.CreatedBy == null ? null : t.CreatedBy.Username
             }).ToListAsync();
 
         return Ok(todos);
@@ -173,12 +182,15 @@ public class TodosController : ControllerBase
             {
                 Id = t.Id,
                 ProjectId = t.ProjectId,
+                ProjectName = t.Project.Name,
                 Title = t.Title,
                 Description = t.Description,
                 Status = t.Status,
                 CreatedAt = t.CreatedAt,
                 Assigned = t.AssignedId,
-                IssueNo = t.IssueNo
+                IssueNo = t.IssueNo,
+                CreatedBy = t.CreatedById,
+                CreatedByName = t.CreatedBy == null ? null : t.CreatedBy.Username
             }).SingleOrDefaultAsync();
 
         if(todo == null)
@@ -239,12 +251,15 @@ public class TodosController : ControllerBase
         {
             Id = todo.Id,
             ProjectId = todo.ProjectId,
+            ProjectName = todo.Project.Name,
             Title = todo.Title,
             Description = todo.Description,
             Status = todo.Status,
             CreatedAt = todo.CreatedAt,
             Assigned = todo.AssignedId,
-            IssueNo = todo.IssueNo
+            IssueNo = todo.IssueNo,
+            CreatedBy = todo.CreatedById,
+            CreatedByName = todo.CreatedBy?.Username
         };
 
         return Ok(dto);
@@ -298,12 +313,15 @@ public class TodosController : ControllerBase
         {
             Id = todo.Id,
             ProjectId = todo.ProjectId,
+            ProjectName = todo.Project.Name,
             Title = todo.Title,
             Description = todo.Description,
             Status = todo.Status,
             CreatedAt = todo.CreatedAt,
             Assigned = todo.AssignedId,
-            IssueNo = todo.IssueNo
+            IssueNo = todo.IssueNo,
+            CreatedBy = todo.CreatedById,
+            CreatedByName = todo.CreatedBy?.Username
         };
 
         return Ok(dto);
@@ -354,12 +372,15 @@ public class TodosController : ControllerBase
         {
             Id = todo.Id,
             ProjectId = todo.ProjectId,
+            ProjectName = todo.Project.Name,
             Title = todo.Title,
             Description = todo.Description,
             Status = todo.Status,
             CreatedAt = todo.CreatedAt,
             Assigned = todo.AssignedId,
-            IssueNo = todo.IssueNo
+            IssueNo = todo.IssueNo,
+            CreatedBy = todo.CreatedById,
+            CreatedByName = todo.CreatedBy?.Username
         };
 
             return Ok(dto);

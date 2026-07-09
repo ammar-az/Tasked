@@ -5,5 +5,7 @@ public enum MemberRole
     Owner,
     Admin,
     Contributor,
-    Viewer
+    Viewer,
+    Banned,
+    Left
 }
