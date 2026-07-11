@@ -12,7 +12,7 @@ using Tasked.Data;
 namespace Tasked.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260615011121_InitialCreate")]
+    [Migration("20260711202323_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -54,6 +54,10 @@ namespace Tasked.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
                     b.Property<string>("Description")
                         .HasColumnType("text")
                         .HasColumnName("description");
@@ -65,6 +69,10 @@ namespace Tasked.Migrations
                     b.Property<int>("IssueCount")
                         .HasColumnType("integer")
                         .HasColumnName("issue_count");
+
+                    b.Property<int>("JoinPolicy")
+                        .HasColumnType("integer")
+                        .HasColumnName("join_policy");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -105,6 +113,10 @@ namespace Tasked.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
+                    b.Property<DateTime>("JoinTime")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("join_time");
+
                     b.Property<int>("Role")
                         .HasColumnType("integer")
                         .HasColumnName("role");
@@ -133,6 +145,10 @@ namespace Tasked.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_id");
+
                     b.Property<string>("Description")
                         .HasColumnType("text")
                         .HasColumnName("description");
@@ -159,6 +175,9 @@ namespace Tasked.Migrations
 
                     b.HasIndex("AssignedId")
                         .HasDatabaseName("ix_todos_assigned_id");
+
+                    b.HasIndex("CreatedById")
+                        .HasDatabaseName("ix_todos_created_by_id");
 
                     b.HasIndex("ProjectId", "IssueNo")
                         .IsUnique()
@@ -232,7 +251,7 @@ namespace Tasked.Migrations
             modelBuilder.Entity("Tasked.Entities.ProjectMember", b =>
                 {
                     b.HasOne("Tasked.Entities.Project", "Project")
-                        .WithMany()
+                        .WithMany("Members")
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
@@ -255,7 +274,14 @@ namespace Tasked.Migrations
                     b.HasOne("Tasked.Entities.User", "Assigned")
                         .WithMany("AssignedTodos")
                         .HasForeignKey("AssignedId")
+                        .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_todos_users_assigned_id");
+
+                    b.HasOne("Tasked.Entities.User", "CreatedBy")
+                        .WithMany("CreatedTodos")
+                        .HasForeignKey("CreatedById")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_todos_users_created_by_id");
 
                     b.HasOne("Tasked.Entities.Project", "Project")
                         .WithMany("Todos")
@@ -265,6 +291,8 @@ namespace Tasked.Migrations
                         .HasConstraintName("fk_todos_projects_project_id");
 
                     b.Navigation("Assigned");
+
+                    b.Navigation("CreatedBy");
 
                     b.Navigation("Project");
                 });
@@ -288,12 +316,16 @@ namespace Tasked.Migrations
 
             modelBuilder.Entity("Tasked.Entities.Project", b =>
                 {
+                    b.Navigation("Members");
+
                     b.Navigation("Todos");
                 });
 
             modelBuilder.Entity("Tasked.Entities.User", b =>
                 {
                     b.Navigation("AssignedTodos");
+
+                    b.Navigation("CreatedTodos");
 
                     b.Navigation("OwnedProjects");
                 });

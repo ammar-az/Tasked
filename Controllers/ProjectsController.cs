@@ -28,15 +28,22 @@ public class ProjectsController : ControllerBase
     {
         var userId = User.GetUserId();
 
+        var user = await _db.Users
+            .Where(u => u.Id == userId)
+            .Include(u => u.Org)
+            .SingleOrDefaultAsync();
+
+        if(user is null) return Conflict();
+        
         var project = new Project
         {
             Id = Guid.NewGuid(),
-            OrgId = request.OrgId,
+            OrgId = request.Org ? user.OrgId : null,
             OwnerId = userId,
             Name = request.Name,
             Description = request.Description,
-            IsVisible = request.IsVisible ?? true,
-            JoinPolicy = request.JoinPolicy ?? JoinPolicy.Open,
+            IsVisible = request.IsVisible,
+            JoinPolicy = request.JoinPolicy,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -64,11 +71,11 @@ public class ProjectsController : ControllerBase
         {
             Id = project.Id,
             OwnerId = project.OwnerId,
-            OwnerName = project.Owner.Username,
+            OwnerName = user.Username,
             Name = project.Name,
             Description = project.Description,
             OrgId = project.OrgId,
-            OrgName = project.Org?.Name,
+            OrgName = user.Org?.Name,
             IsVisible = project.IsVisible,
             JoinPolicy = project.JoinPolicy,
             CreatedAt = project.CreatedAt
@@ -139,7 +146,8 @@ public class ProjectsController : ControllerBase
         {
             ProjectId = projectId,
             UserId = userId,
-            Role = MemberRole.Contributor
+            Role = MemberRole.Contributor,
+            JoinTime = DateTime.Now
         };
 
         _db.ProjectMembers.Add(membership);
@@ -327,12 +335,14 @@ public class ProjectsController : ControllerBase
 
     [HttpPatch("{projectId}")]
     [Authorize]
-    public async Task<IActionResult> EditProject(Guid projectId, [FromQuery] ProjectRequest request)
+    public async Task<IActionResult> EditProject(Guid projectId, [FromQuery] ProjectUpdateRequest request)
     {
         var userId = User.GetUserId();
 
         var project = await _db.Projects
             .Where(p => p.Id == projectId)
+            .Include(p => p.Org)
+            .Include(p => p.Owner)
             .SingleOrDefaultAsync();
 
         if(project is null) return NotFound();
@@ -584,7 +594,7 @@ public class ProjectsController : ControllerBase
         {
             Id = project.Id,
             OwnerId = project.OwnerId,
-            OwnerName = project.Owner.Username,
+            OwnerName = membership.User.Username,
             Name = project.Name,
             Description = project.Description,
             OrgId = project.OrgId,

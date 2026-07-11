@@ -33,7 +33,6 @@ public class TodosController : ControllerBase
         var requesterId = User.GetUserId();
 
         var membership = await _db.ProjectMembers
-            .AsNoTracking()
             .Where(m => m.UserId == requesterId && m.ProjectId == projectId)
             .Include(m => m.User)
             .Include(m=> m.Project)
@@ -51,6 +50,7 @@ public class TodosController : ControllerBase
             CreatedById = requesterId,
             IssueNo = membership.Project.IssueCount + 1
         };
+
         membership.Project.IssueCount++;
 
         _db.Todos.Add(todo);
@@ -70,12 +70,11 @@ public class TodosController : ControllerBase
         {
             Id = todo.Id,
             ProjectId = todo.ProjectId,
-            ProjectName = todo.Project.Name,
+            ProjectName = membership.Project.Name,
             Title = todo.Title,
             Description = todo.Description,
             Status = todo.Status,
             CreatedAt = todo.CreatedAt,
-            Assigned = todo.AssignedId,
             IssueNo = todo.IssueNo,
             CreatedBy = todo.CreatedById,
             CreatedByName = membership.User.Username
@@ -142,44 +141,6 @@ public class TodosController : ControllerBase
         return Ok(todos);
     }
 
-    // [HttpGet("projects/{projectId}/assigned/{userId}")]
-    // [Authorize]
-    // public async Task<IActionResult> GetProjectAssigned(Guid projectId, Guid userId)
-    // {
-    //     var requesterId = User.GetUserId();
-    //     //vis check
-
-    //     var membership = await _db.ProjectMembers
-    //     .Where(m => m.UserId == userId && m.ProjectId == projectId)
-    //     .SingleOrDefaultAsync();
-
-    //     if(membership == null)
-    //     {
-    //         return NotFound("User is not a member of the project");
-    //     }
-
-    //     var todos = await _db.Todos
-    //     .AsNoTracking()
-    //     .Where(todo => todo.ProjectId == projectId && todo.AssignedId == userId)
-    //     .Select(t => 
-    //         new TodoDto()
-    //         {
-    //             Id = t.Id,
-    //             ProjectId = t.ProjectId,
-    //             ProjectName = t.Project.Name,
-    //             Title = t.Title,
-    //             Description = t.Description,
-    //             Status = t.Status,
-    //             CreatedAt = t.CreatedAt,
-    //             Assigned = t.AssignedId,
-    //             IssueNo = t.IssueNo,
-    //             CreatedBy = t.CreatedById,
-    //             CreatedByName = t.CreatedBy == null ? null : t.CreatedBy.Username
-    //         }).ToListAsync();
-
-    //     return Ok(todos);
-    // }
-
     [HttpDelete("{todoId}")]
     [Authorize]
     public async Task<IActionResult> DeleteTodo(Guid todoId)
@@ -197,7 +158,7 @@ public class TodosController : ControllerBase
             .Where(m => m.UserId == requesterId && m.ProjectId == todo.ProjectId)
             .SingleOrDefaultAsync();
 
-        if(membership is null || (todo.CreatedById != requesterId && (membership.Role == MemberRole.Owner || membership.Role == MemberRole.Admin))) return Forbid();
+        if(membership is null || (todo.CreatedById != requesterId && membership.Role != MemberRole.Owner && membership.Role != MemberRole.Admin)) return Forbid();
         
         _db.Todos.Remove(todo);
         
@@ -296,7 +257,7 @@ public class TodosController : ControllerBase
         {
             Id = todo.Id,
             ProjectId = todo.ProjectId,
-            ProjectName = todo.Project.Name,
+            ProjectName = membership.Project.Name,
             Title = todo.Title,
             Description = todo.Description,
             Status = todo.Status,
@@ -322,6 +283,8 @@ public class TodosController : ControllerBase
         
         var todo = await _db.Todos
             .Where(t => t.Id == todoId)
+            .Include(t => t.CreatedBy)
+            .Include(t => t.Assigned)
             .SingleOrDefaultAsync();
 
         if(todo is null) return NotFound("Task not found");
@@ -358,13 +321,13 @@ public class TodosController : ControllerBase
         {
             Id = todo.Id,
             ProjectId = todo.ProjectId,
-            ProjectName = todo.Project.Name,
+            ProjectName = membership.Project.Name,
             Title = todo.Title,
             Description = todo.Description,
             Status = todo.Status,
             CreatedAt = todo.CreatedAt,
             Assigned = todo.AssignedId,
-            AssignedName = membership.User.Username,
+            AssignedName = todo.Assigned?.Username,
             IssueNo = todo.IssueNo,
             CreatedBy = todo.CreatedById,
             CreatedByName = todo.CreatedBy?.Username

@@ -6,6 +6,7 @@ using Microsoft.OpenApi;
 
 using Tasked.Data;
 using Tasked.Jwt;
+using Tasked.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,7 +49,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         .UseSnakeCaseNamingConvention());
 
 builder.Services.AddScoped<TokenService>();
-builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<ProjectService>();
 
 var jwt = builder.Configuration.GetSection("Jwt");
 

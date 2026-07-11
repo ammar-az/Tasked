@@ -21,43 +21,6 @@ public class UsersController : ControllerBase
         _db = db;
     }
 
-    //register new user
-    //Remove for Auth? 
-    // [HttpPost]
-    // public async Task<ActionResult<UserDto>> Register(string username, string email)
-    // {
-    //     var user = new User
-    //     {
-    //         Username = username,
-    //         Email = email
-    //     };
-
-    //     _db.Users.Add(user);
-    //     try
-    //     {
-    //         await _db.SaveChangesAsync();
-    //     }
-    //     catch(DbUpdateException e)
-    //     {
-    //         return Conflict(e.InnerException?.Message);
-    //     }
-
-    //     var dto = new UserDto()
-    //     {
-    //         Id = user.Id,
-    //         Username = user.Username,
-    //         OrgId = user.OrgId,
-    //         OrgName = user.Org?.Name,
-    //         Email = user.Email
-    //     };
-
-    //     return CreatedAtAction(
-    //         nameof(GetUserById), 
-    //         new { userId = user.Id }, 
-    //         dto
-    //     );
-    // }
-
     [HttpGet("{userId}")]
     public async Task<ActionResult<UserDto>> GetUserById(Guid userId)
     {
@@ -112,64 +75,6 @@ public class UsersController : ControllerBase
 
         return NoContent();
     }
-
-
-    // //get all projects a user owns 
-    // [HttpGet("{userId}/projects")]
-    // [Authorize]
-    // public async Task<ActionResult<IEnumerable<ProjectDto>>> GetUserProjects(Guid userId)
-    // {   
-    //     var requesterId = User.GetUserId();
-    //     //Vis check, skipped if self
-        
-    //     var projects = await _db.Projects
-    //     .AsNoTracking()
-    //     .Where(p => p.OwnerId == userId)
-    //     .Select(p => 
-    //         new ProjectDto
-    //         {
-    //             Id = p.Id,
-    //             OwnerId = p.OwnerId,
-    //             OwnerName = p.Owner.Username,
-    //             Name = p.Name,
-    //             Description = p.Description,
-    //             OrgId = p.OrgId,
-    //             OrgName = p.Org == null ? null : p.Org.Name,
-    //             CreatedAt = p.CreatedAt,
-    //             IsVisible = p.IsVisible,
-    //             JoinPolicy = p.JoinPolicy
-    //         }).ToListAsync();
-
-    //     return Ok(projects);
-    // }
-
-    // [HttpGet("{userId}/memberof")]
-    // [Authorize]
-    // public async Task<ActionResult<IEnumerable<ProjectDto>>> GetUserMembership(Guid userId)
-    // {   
-    //     var requesterId = User.GetUserId();
-    //     //Vis check
-
-    //     var memberships = await _db.ProjectMembers
-    //     .AsNoTracking()
-    //     .Where(membership => membership.UserId == userId)
-    //     .Select(m => 
-    //     new ProjectDto
-    //         {
-    //             Id = m.Project.Id,
-    //             OwnerId = m.Project.OwnerId,
-    //             Name = m.Project.Name,
-    //             OwnerName = m.Project.Owner.Username,
-    //             Description = m.Project.Description,
-    //             OrgId = m.Project.OrgId,
-    //             OrgName = m.Project.Org == null ? null : m.Project.Org.Name,
-    //             JoinPolicy = m.Project.JoinPolicy,
-    //             CreatedAt = m.Project.CreatedAt,
-    //             IsVisible = m.Project.IsVisible
-    //         }).ToListAsync();
-
-    //     return Ok(memberships);
-    // }
 
     [HttpGet("{userId}/projects")]
     public async Task<ActionResult> GetUserProjects(Guid userId , [FromQuery] MemberOverviewRequest request)

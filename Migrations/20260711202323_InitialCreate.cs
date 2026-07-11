@@ -53,7 +53,9 @@ namespace Tasked.Migrations
                     name = table.Column<string>(type: "text", nullable: false),
                     description = table.Column<string>(type: "text", nullable: true),
                     is_visible = table.Column<bool>(type: "boolean", nullable: false),
-                    issue_count = table.Column<int>(type: "integer", nullable: false)
+                    issue_count = table.Column<int>(type: "integer", nullable: false),
+                    join_policy = table.Column<int>(type: "integer", nullable: false),
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -77,7 +79,8 @@ namespace Tasked.Migrations
                 {
                     project_id = table.Column<Guid>(type: "uuid", nullable: false),
                     user_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    role = table.Column<int>(type: "integer", nullable: false)
+                    role = table.Column<int>(type: "integer", nullable: false),
+                    join_time = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -105,9 +108,10 @@ namespace Tasked.Migrations
                     title = table.Column<string>(type: "text", nullable: false),
                     description = table.Column<string>(type: "text", nullable: true),
                     status = table.Column<int>(type: "integer", nullable: false),
-                    assigned_id = table.Column<Guid>(type: "uuid", nullable: true),
                     created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    issue_no = table.Column<int>(type: "integer", nullable: false)
+                    issue_no = table.Column<int>(type: "integer", nullable: false),
+                    assigned_id = table.Column<Guid>(type: "uuid", nullable: true),
+                    created_by_id = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -122,7 +126,14 @@ namespace Tasked.Migrations
                         name: "fk_todos_users_assigned_id",
                         column: x => x.assigned_id,
                         principalTable: "users",
-                        principalColumn: "id");
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "fk_todos_users_created_by_id",
+                        column: x => x.created_by_id,
+                        principalTable: "users",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.SetNull);
                 });
 
             migrationBuilder.CreateIndex(
@@ -156,6 +167,11 @@ namespace Tasked.Migrations
                 name: "ix_todos_assigned_id",
                 table: "todos",
                 column: "assigned_id");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_todos_created_by_id",
+                table: "todos",
+                column: "created_by_id");
 
             migrationBuilder.CreateIndex(
                 name: "ix_todos_project_id_issue_no",

@@ -20,7 +20,15 @@ public record ProjectRequest
 {
     required public string Name {get; init;}
     public string? Description {get; init;}
-    public Guid? OrgId {get; init;}
+    public bool Org {get; init;}
+    public bool IsVisible {get; init;}
+    public JoinPolicy JoinPolicy {get; init;}
+}
+
+public record ProjectUpdateRequest
+{
+    public string? Name {get; init;}
+    public string? Description {get; init;}
     public bool? IsVisible {get; init;}
     public JoinPolicy? JoinPolicy {get; init;}
 }
