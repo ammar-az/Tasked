@@ -5,6 +5,8 @@ using Tasked.Entities;
 using Tasked.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Tasked.Services;
+using Tasked.Enums;
+using Azure;
 
 namespace Tasked.Controllers;
 
@@ -123,58 +125,115 @@ public class UsersController : ControllerBase
     }
 
 
-    //get all projects a user owns 
-    [HttpGet("{userId}/projects")]
-    [Authorize]
-    public async Task<ActionResult<IEnumerable<ProjectDto>>> GetUserProjects(Guid userId)
-    {   
-        var requesterId = User.GetUserId();
-        //Vis check, skipped if self
+    // //get all projects a user owns 
+    // [HttpGet("{userId}/projects")]
+    // [Authorize]
+    // public async Task<ActionResult<IEnumerable<ProjectDto>>> GetUserProjects(Guid userId)
+    // {   
+    //     var requesterId = User.GetUserId();
+    //     //Vis check, skipped if self
         
-        var projects = await _db.Projects
-        .AsNoTracking()
-        .Where(p => p.OwnerId == userId)
-        .Select(p => 
-            new ProjectDto
+    //     var projects = await _db.Projects
+    //     .AsNoTracking()
+    //     .Where(p => p.OwnerId == userId)
+    //     .Select(p => 
+    //         new ProjectDto
+    //         {
+    //             Id = p.Id,
+    //             OwnerId = p.OwnerId,
+    //             OwnerName = p.Owner.Username,
+    //             Name = p.Name,
+    //             Description = p.Description,
+    //             OrgId = p.OrgId,
+    //             OrgName = p.Org == null ? null : p.Org.Name,
+    //             CreatedAt = p.CreatedAt,
+    //             IsVisible = p.IsVisible,
+    //             JoinPolicy = p.JoinPolicy
+    //         }).ToListAsync();
+
+    //     return Ok(projects);
+    // }
+
+    // [HttpGet("{userId}/memberof")]
+    // [Authorize]
+    // public async Task<ActionResult<IEnumerable<ProjectDto>>> GetUserMembership(Guid userId)
+    // {   
+    //     var requesterId = User.GetUserId();
+    //     //Vis check
+
+    //     var memberships = await _db.ProjectMembers
+    //     .AsNoTracking()
+    //     .Where(membership => membership.UserId == userId)
+    //     .Select(m => 
+    //     new ProjectDto
+    //         {
+    //             Id = m.Project.Id,
+    //             OwnerId = m.Project.OwnerId,
+    //             Name = m.Project.Name,
+    //             OwnerName = m.Project.Owner.Username,
+    //             Description = m.Project.Description,
+    //             OrgId = m.Project.OrgId,
+    //             OrgName = m.Project.Org == null ? null : m.Project.Org.Name,
+    //             JoinPolicy = m.Project.JoinPolicy,
+    //             CreatedAt = m.Project.CreatedAt,
+    //             IsVisible = m.Project.IsVisible
+    //         }).ToListAsync();
+
+    //     return Ok(memberships);
+    // }
+
+    [HttpGet("{userId}/projects")]
+    public async Task<ActionResult> GetUserProjects(Guid userId , [FromQuery] MemberOverviewRequest request)
+    {
+        var requesterId = User.GetNullableUserId();
+
+        var requester = requesterId == null 
+            ? null 
+            : await _db.Users
+                .AsNoTracking()
+                .Where(u => u.Id == requesterId)
+                .Select(u =>
+                    new
+                    {
+                        u.OrgId,
+                    }
+                )
+                .FirstOrDefaultAsync();
+
+        var query = _db.ProjectMembers
+            .AsNoTracking()
+            .Where(m => m.UserId == userId)
+            .Where(m => 
+                m.Project.IsVisible ||
+                    (requester != null && 
+                        ((requester.OrgId != null && requester.OrgId == m.Project.OrgId)
+                        ||
+                        m.Project.Members.Any(pm => pm.UserId == requesterId && pm.Role != MemberRole.Banned)) 
+                    )
+                );
+
+        if(request.Role != null) query = query.Where(m => m.Role == request.Role);
+        else query = query.Where(m => m.Role != MemberRole.Banned);
+
+        if(request.Owner) query = query.Where(m => m.Role == MemberRole.Owner);
+
+        var page = Math.Max(request.Page, 1);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+
+        var memberships = await query
+        .OrderBy(m => m.Project.Name)
+        .ThenBy(m => m.ProjectId)
+        .Skip((page - 1) * pageSize)
+        .Take(pageSize)
+        .Select(m =>
+            new MemberOverviewDto()
             {
-                Id = p.Id,
-                OwnerId = p.OwnerId,
-                OwnerName = p.Owner.Username,
-                Name = p.Name,
-                Description = p.Description,
-                OrgId = p.OrgId,
-                OrgName = p.Org == null ? null : p.Org.Name,
-                CreatedAt = p.CreatedAt,
-                IsVisible = p.IsVisible,
-                JoinPolicy = p.JoinPolicy
-            }).ToListAsync();
-
-        return Ok(projects);
-    }
-
-    [HttpGet("{userId}/memberof")]
-    [Authorize]
-    public async Task<ActionResult<IEnumerable<ProjectDto>>> GetUserMembership(Guid userId)
-    {   
-        var requesterId = User.GetUserId();
-        //Vis check
-
-        var memberships = await _db.ProjectMembers
-        .AsNoTracking()
-        .Where(membership => membership.UserId == userId)
-        .Select(m => 
-        new ProjectDto
-            {
-                Id = m.Project.Id,
-                OwnerId = m.Project.OwnerId,
-                Name = m.Project.Name,
-                OwnerName = m.Project.Owner.Username,
-                Description = m.Project.Description,
+                ProjectId = m.ProjectId,
+                ProjectName = m.Project.Name,
+                ProjectDesc = m.Project.Description,
+                Role = m.Role,
                 OrgId = m.Project.OrgId,
-                OrgName = m.Project.Org == null ? null : m.Project.Org.Name,
-                JoinPolicy = m.Project.JoinPolicy,
-                CreatedAt = m.Project.CreatedAt,
-                IsVisible = m.Project.IsVisible
+                OrgName = m.Project.Org == null ? null : m.Project.Org.Name
             }).ToListAsync();
 
         return Ok(memberships);
@@ -243,13 +302,22 @@ public class UsersController : ControllerBase
 
     [HttpGet("todos")]
     [Authorize]
-    public async Task<ActionResult<IEnumerable<TodoDto>>> GetUserTodos()
+    public async Task<ActionResult<IEnumerable<TodoDto>>> GetUserTodos([FromQuery] GetManyTodosRequest request)
     {
         var userId = User.GetUserId();
 
-        var todos = await _db.Todos
-        .AsNoTracking()
-        .Where(t => t.AssignedId == userId)
+        var query = _db.Todos
+            .AsNoTracking()
+            .Where(t => t.AssignedId == userId);
+        
+        var page = Math.Max(request.Page, 1);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+        
+        var todos = await query
+        .OrderBy(t => t.ProjectId)
+        .ThenBy(t => t.IssueNo)
+        .Skip((page - 1) * pageSize)
+        .Take(pageSize)
         .Select(t => 
             new TodoDto
             {
@@ -261,7 +329,9 @@ public class UsersController : ControllerBase
                 Status = t.Status,
                 CreatedAt = t.CreatedAt,
                 Assigned = t.AssignedId,
-                IssueNo = t.IssueNo
+                IssueNo = t.IssueNo,
+                CreatedBy = t.CreatedById,
+                CreatedByName = t.CreatedBy == null ? null : t.CreatedBy.Username
             }).ToListAsync();
 
         return Ok(todos);

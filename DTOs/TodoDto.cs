@@ -34,3 +34,17 @@ public record TodoUpdateRequest
     public Guid? Assigned {get; init;}
     public bool Unassign {get; init;} = false;
 }
+
+public record GetManyTodosRequest
+{
+    public string? Search {get; init;}
+    public TodoStatus? Status {get; init;}
+
+    public Guid? Assigned {get; init;}
+    
+    public string SortBy {get; init;} = "IssueNo";
+    public bool Descending {get; init;}
+
+    public int Page {get; init;} = 1;
+    public int PageSize {get; init;} = 20;
+}

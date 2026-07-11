@@ -184,15 +184,36 @@ public class ProjectsController : ControllerBase
 
     //get all members of a project, same visible check as before, 
     [HttpGet("{projectId}/members")]
-    [Authorize] //Maybe don't auth? If users not logged in can see projects, why not their members as well?
-    public async Task<IActionResult> GetMembers(Guid projectId)
+    public async Task<IActionResult> GetMembers(Guid projectId, [FromQuery] MemberOverviewRequest request)
     {   
         var requesterId = User.GetUserId();
-        //vis check
-
-        var members = await _db.ProjectMembers
+        
+        var project = await _db.Projects
         .AsNoTracking()
-        .Where(member => member.ProjectId == projectId)
+        .Where(p => p.Id == projectId)
+        .FirstOrDefaultAsync();
+
+        if(project == null) return NotFound();
+
+        if(!await _auth.CanView(project, requesterId)) return NotFound();
+
+        var query = _db.ProjectMembers
+            .AsNoTracking()
+            .Where(m => m.ProjectId == projectId);
+
+        if(request.Role != null) query = query.Where(m => m.Role == request.Role);
+        else query = query.Where(m => m.Role != MemberRole.Banned);
+
+        if(!string.IsNullOrWhiteSpace(request.Search)) query = query.Where(m => m.User.Username.Contains(request.Search));
+
+        var page = Math.Max(request.Page, 1);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+
+        var members = await query
+        .OrderBy(m => m.Role)
+        .ThenBy(m => m.JoinTime)
+        .Skip((page - 1) * pageSize)
+        .Take(pageSize)
         .Select(m => 
             new MemberDto()
             {

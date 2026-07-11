@@ -18,4 +18,5 @@ public class Project
     public JoinPolicy JoinPolicy {get; set;}
     public DateTime CreatedAt {get; set;}
     public ICollection<Todo> Todos {get; set;} = [];
+    public ICollection<ProjectMember> Members {get;} = [];
 }
