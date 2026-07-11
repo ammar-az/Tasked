@@ -21,6 +21,6 @@ public record ProjectRequest
     required public string Name {get; init;}
     public string? Description {get; init;}
     public Guid? OrgId {get; init;}
-    required public bool IsVisible {get; init;}
-    required public JoinPolicy JoinPolicy {get; init;}
+    public bool? IsVisible {get; init;}
+    public JoinPolicy? JoinPolicy {get; init;}
 }

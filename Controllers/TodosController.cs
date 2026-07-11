@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Tasked.Data;
@@ -22,19 +23,23 @@ public class TodosController : ControllerBase
         _auth = projectService;
     }
 
-    //all of these should be checking for visibility at least
-    //create task, should check user is a contributor or higher in project to do so
     [HttpPost("projects/{projectId}")]
-    //DTO here
-    public async Task<IActionResult> CreateTodo(TodoRequest request, Guid projectId)
+    [Authorize]
+    public async Task<IActionResult> CreateTodo(Guid projectId, [FromQuery] TodoRequest request)
     {
+        if(!Enum.IsDefined(request.Status)) return BadRequest("Invalid status");
         await using var transaction = await _db.Database.BeginTransactionAsync();
 
-        var project = await _db.Projects.Where(p => p.Id == projectId).SingleOrDefaultAsync();
-        if(project == null)
-        {
-            return NotFound();
-        }
+        var requesterId = User.GetUserId();
+
+        var membership = await _db.ProjectMembers
+            .AsNoTracking()
+            .Where(m => m.UserId == requesterId && m.ProjectId == projectId)
+            .Include(m => m.User)
+            .Include(m=> m.Project)
+            .SingleOrDefaultAsync();
+
+        if(membership is null || !_auth.CanContribute(membership)) return Forbid();
 
         var todo = new Todo
         {
@@ -43,9 +48,10 @@ public class TodosController : ControllerBase
             Description = request.Description,
             Status = request.Status,
             CreatedAt = DateTime.UtcNow,
-            IssueNo = project.IssueCount + 1,
+            CreatedById = requesterId,
+            IssueNo = membership.Project.IssueCount + 1
         };
-        project.IssueCount++;
+        membership.Project.IssueCount++;
 
         _db.Todos.Add(todo);
 
@@ -72,7 +78,7 @@ public class TodosController : ControllerBase
             Assigned = todo.AssignedId,
             IssueNo = todo.IssueNo,
             CreatedBy = todo.CreatedById,
-            CreatedByName = todo.CreatedBy?.Username
+            CreatedByName = membership.User.Username
         };
 
         return CreatedAtAction(
@@ -86,12 +92,12 @@ public class TodosController : ControllerBase
     public  async Task<IActionResult> GetProjectTodos(Guid projectId, [FromQuery] GetManyTodosRequest request)
     {   
         var requesterId = User.GetNullableUserId();
-        Project? parent = await _db.Projects
-        .AsNoTracking()
-        .Where(p => p.Id == projectId)
-        .FirstOrDefaultAsync();
+        var parent = await _db.Projects
+            .AsNoTracking()
+            .Where(p => p.Id == projectId)
+            .FirstOrDefaultAsync();
 
-        if(parent == null) return NotFound();
+        if(parent is null) return NotFound();
 
         if(!await _auth.CanView(parent, requesterId)) return NotFound();
 
@@ -99,34 +105,39 @@ public class TodosController : ControllerBase
             .AsNoTracking()
             .Where(t => t.ProjectId == projectId);
 
-        if(!string.IsNullOrWhiteSpace(request.Search)) query = query.Where(t => t.Title.Contains(request.Search) || (t.Description != null && t.Description.Contains(request.Search)));
+        if(!string.IsNullOrWhiteSpace(request.Search)) query = query.Where(t => t.Title.Contains(request.Search) || (!string.IsNullOrWhiteSpace(t.Description) && t.Description.Contains(request.Search)));
         
-        if(request.Status != null) query = query.Where(t => t.Status == request.Status);
+        if(request.Status is not null && Enum.IsDefined((TodoStatus) request.Status)) query = query.Where(t => t.Status == request.Status);
         
-        if(request.Assigned != null) query = query.Where(t => t.AssignedId == request.Assigned);
+        if(request.Assigned is not null) query = query.Where(t => t.AssignedId == request.Assigned);
         
+        query = query
+            .Include(t => t.Assigned)
+            .Include(t => t.CreatedBy);
+
         var page = Math.Max(request.Page, 1);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
 
         var todos = await query
-        .OrderBy(t => t.IssueNo)
-        .Skip((page - 1) * pageSize)
-        .Take(pageSize)
-        .Select(t => 
-            new TodoDto()
-            {
-                Id = t.Id,
-                ProjectId = t.ProjectId,
-                ProjectName = t.Project.Name,
-                Title = t.Title,
-                Description = t.Description,
-                Status = t.Status,
-                CreatedAt = t.CreatedAt,
-                Assigned = t.AssignedId,
-                IssueNo = t.IssueNo,
-                CreatedBy = t.CreatedById,
-                CreatedByName = t.CreatedBy == null ? null : t.CreatedBy.Username
-            }).ToListAsync();
+            .OrderBy(t => t.IssueNo)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(t => 
+                new TodoDto()
+                {
+                    Id = t.Id,
+                    ProjectId = t.ProjectId,
+                    ProjectName = t.Project.Name,
+                    Title = t.Title,
+                    Description = t.Description,
+                    Status = t.Status,
+                    CreatedAt = t.CreatedAt,
+                    Assigned = t.AssignedId,
+                    AssignedName = t.Assigned == null ? null : t.Assigned.Username,
+                    IssueNo = t.IssueNo,
+                    CreatedBy = t.CreatedById,
+                    CreatedByName = t.CreatedBy == null ? null : t.CreatedBy.Username
+                }).ToListAsync();
 
         return Ok(todos);
     }
@@ -169,94 +180,106 @@ public class TodosController : ControllerBase
     //     return Ok(todos);
     // }
 
-    //anyone can archive a todo, can anyone delete?
     [HttpDelete("{todoId}")]
     [Authorize]
     public async Task<IActionResult> DeleteTodo(Guid todoId)
     {
-        var userId = User.GetUserId();
-        // permission check
+        var requesterId = User.GetUserId();
         
-        var deleted = await _db.Todos
-        .Where(t => t.Id == todoId)
-        .ExecuteDeleteAsync();
+        var todo = await _db.Todos
+            .Where(t => t.Id == todoId)
+            .SingleOrDefaultAsync();
 
-        if(deleted == 0)
+        if(todo is null) return NotFound();
+
+        var membership = await _db.ProjectMembers
+            .AsNoTracking()
+            .Where(m => m.UserId == requesterId && m.ProjectId == todo.ProjectId)
+            .SingleOrDefaultAsync();
+
+        if(membership is null || (todo.CreatedById != requesterId && (membership.Role == MemberRole.Owner || membership.Role == MemberRole.Admin))) return Forbid();
+        
+        _db.Todos.Remove(todo);
+        
+        try
         {
-            return NotFound();
+            await _db.SaveChangesAsync();
         }
-
+        catch(DbUpdateException e)
+        {
+            return Conflict(e.InnerException?.Message);
+        }
+        
         return NoContent();
     }
 
     [HttpGet("{todoId}")]
-    [Authorize]
     public async Task<IActionResult> GetTodo(Guid todoId)
     {
-        var userId = User.GetUserId();
-        //vis check
+        var requesterId = User.GetNullableUserId();
         
         var todo = await _db.Todos
-        .AsNoTracking()
-        .Where(t => t.Id == todoId)
-        .Select(t => 
-            new TodoDto()
-            {
-                Id = t.Id,
-                ProjectId = t.ProjectId,
-                ProjectName = t.Project.Name,
-                Title = t.Title,
-                Description = t.Description,
-                Status = t.Status,
-                CreatedAt = t.CreatedAt,
-                Assigned = t.AssignedId,
-                IssueNo = t.IssueNo,
-                CreatedBy = t.CreatedById,
-                CreatedByName = t.CreatedBy == null ? null : t.CreatedBy.Username
-            }).SingleOrDefaultAsync();
+            .AsNoTracking()
+            .Where(t => t.Id == todoId)
+            .Select(t => 
+                new TodoDto()
+                {
+                    Id = t.Id,
+                    ProjectId = t.ProjectId,
+                    ProjectName = t.Project.Name,
+                    Title = t.Title,
+                    Description = t.Description,
+                    Status = t.Status,
+                    CreatedAt = t.CreatedAt,
+                    Assigned = t.AssignedId,
+                    IssueNo = t.IssueNo,
+                    CreatedBy = t.CreatedById,
+                    CreatedByName = t.CreatedBy == null ? null : t.CreatedBy.Username
+                }).SingleOrDefaultAsync();
 
-        if(todo == null)
-        {
-            return NotFound();
-        }
+        if(todo is null) return NotFound();
+        
+        var parent = await _db.Projects
+            .AsNoTracking()
+            .Where(p => p.Id == todo.ProjectId)
+            .FirstOrDefaultAsync();
+
+        if(parent is null) return StatusCode(500);
+
+        if(!await _auth.CanView(parent, requesterId)) return NotFound();
 
         return Ok(todo);
     }
 
-    //assign user to a todo
     [HttpPatch("{todoId}/assign/{userId}")]
     [Authorize]
     //Make DTO?
     public async Task<IActionResult> AssignTodo(Guid todoId, Guid userId)
     {
         var requesterId = User.GetUserId();
-        // permission check
 
         var todo = await _db.Todos
-        .Where(t => t.Id == todoId)
-        .SingleOrDefaultAsync();
+            .Where(t => t.Id == todoId)
+            .Include(t => t.CreatedBy)
+            .SingleOrDefaultAsync();
 
-        if(todo == null)
-        {
-            return NotFound("Task not found");
-        }
-
-        var user = await _db.Users
-        .Where(u => u.Id == userId)
-        .SingleOrDefaultAsync();
+        if(todo is null) return NotFound("Task not found");
 
         var membership = await _db.ProjectMembers
-        .Where(m => m.UserId == userId && m.ProjectId == todo.ProjectId)
-        .SingleOrDefaultAsync();
+            .AsNoTracking()
+            .Where(m => m.UserId == userId && m.ProjectId == todo.ProjectId)
+            .Include(m => m.User)
+            .Include(m=> m.Project)
+            .SingleOrDefaultAsync();
 
-        if(membership == null)
-        {
-            return NotFound("Cannot assign a task to a user that is not a member of the project");
-        }
+        if(membership is null) return NotFound("Cannot assign a task to a user that is not a member of the project");
 
-        if(membership.Role == MemberRole.Viewer)
+        if(!_auth.CanContribute(membership)) return Conflict("User must be a contributor or higher to be assigned to tasks");
+
+        if(requesterId != userId)
         {
-            return Conflict("User must be a contributor or higher to be assigned to tasks");
+            var admin = await _auth.AdminPermissions(membership.Project, requesterId);
+            if(!admin) return Forbid();
         }
 
         todo.AssignedId = userId;
@@ -279,6 +302,7 @@ public class TodosController : ControllerBase
             Status = todo.Status,
             CreatedAt = todo.CreatedAt,
             Assigned = todo.AssignedId,
+            AssignedName = membership.User.Username,
             IssueNo = todo.IssueNo,
             CreatedBy = todo.CreatedById,
             CreatedByName = todo.CreatedBy?.Username
@@ -292,27 +316,26 @@ public class TodosController : ControllerBase
     [Authorize]
     public async Task<IActionResult> UpdateTodoStatus(Guid todoId, TodoStatus status)
      {
+        if(!Enum.IsDefined(status)) return BadRequest("Invalid status");
+
         var requesterId = User.GetUserId();
-        // permission check
-
-        if(!Enum.IsDefined(status))
-        {
-            return BadRequest("Invalid status");
-        }
-
+        
         var todo = await _db.Todos
-        .Where(t => t.Id == todoId)
-        .SingleOrDefaultAsync();
+            .Where(t => t.Id == todoId)
+            .SingleOrDefaultAsync();
 
-        if(todo == null)
-        {
-            return NotFound("Task not found");
-        }
+        if(todo is null) return NotFound("Task not found");
 
-        if(status == todo.Status)
-        {
-            return NoContent();
-        }
+        if(status == todo.Status) return NoContent();
+
+        var membership = await _db.ProjectMembers
+            .AsNoTracking()
+            .Where(m => m.UserId == requesterId && m.ProjectId == todo.ProjectId)
+            .Include(m => m.User)
+            .Include(m=> m.Project)
+            .SingleOrDefaultAsync();
+
+        if(membership is null || !_auth.CanContribute(membership)) return Forbid();
 
         todo.Status = status;
 
@@ -341,6 +364,7 @@ public class TodosController : ControllerBase
             Status = todo.Status,
             CreatedAt = todo.CreatedAt,
             Assigned = todo.AssignedId,
+            AssignedName = membership.User.Username,
             IssueNo = todo.IssueNo,
             CreatedBy = todo.CreatedById,
             CreatedByName = todo.CreatedBy?.Username
@@ -350,37 +374,38 @@ public class TodosController : ControllerBase
 
     }
 
-    //patch Title, description, maybe timestamp to bump
     [HttpPatch("{todoId}")]
     [Authorize]
-    //DTO here
-    public async Task<IActionResult> UpdateTodo(TodoUpdateRequest request, Guid todoId)
+    public async Task<IActionResult> UpdateTodo(Guid todoId, [FromQuery] TodoUpdateRequest request)
     {
+        var requesterId = User.GetUserId();
 
-        var userId = User.GetUserId();
-        //permission check
-
-        if((request.Title == null || request.Title == "") && request.Description == null && request.Status == null && request.Assigned == null && !request.Unassign)
+        if((request.Title is null || request.Title == "") && request.Description is null && (request.Status is null || !Enum.IsDefined((TodoStatus) request.Status)) && request.Assigned is null && !request.Unassign)
         {
             return BadRequest("Must update at least one field.");
         }
 
         var todo = await _db.Todos
-        .Where(t => t.Id == todoId)
-        .SingleOrDefaultAsync();
+            .Where(t => t.Id == todoId)
+            .Include(t => t.Assigned)
+            .Include(t => t.CreatedBy)
+            .Include(t => t.Project)
+            .SingleOrDefaultAsync();
 
-        if(todo == null)
-        {
-            return NotFound("Task not found");
-        }
+        if(todo is null) return NotFound();
+
+        var membership = await _db.ProjectMembers
+            .AsNoTracking()
+            .Where(m => m.UserId == requesterId && m.ProjectId == todo.ProjectId)
+            .SingleOrDefaultAsync();
+
+        if(membership is null || !_auth.CanContribute(membership)) return Forbid();
         
-        if(request.Title != "")
-        {
-            todo.Title = request.Title ?? todo.Title;        
-        }
+        if(request.Title != "") todo.Title = request.Title ?? todo.Title;        
 
         todo.Description = request.Description ?? todo.Description;
-        todo.Status = request.Status ?? todo.Status;
+
+        if(request.Status is not null && Enum.IsDefined((TodoStatus) request.Status)) todo.Status = (TodoStatus) request.Status;
 
         try
         {
@@ -400,12 +425,13 @@ public class TodosController : ControllerBase
             Status = todo.Status,
             CreatedAt = todo.CreatedAt,
             Assigned = todo.AssignedId,
+            AssignedName = todo.Assigned?.Username,
             IssueNo = todo.IssueNo,
             CreatedBy = todo.CreatedById,
             CreatedByName = todo.CreatedBy?.Username
         };
 
-            return Ok(dto);
+        return Ok(dto);
     }
 
 }

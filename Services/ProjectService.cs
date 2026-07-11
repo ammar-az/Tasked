@@ -31,23 +31,29 @@ public class ProjectService(ApplicationDbContext db)
             m.Role != MemberRole.Left);
     }
 
-    public async Task<bool> CanContribute(Project project, Guid userId)
+    // public async Task<bool> CanContribute(Project project, Guid userId)
+    // {
+    //     var member = await _db.ProjectMembers.FirstOrDefaultAsync(m =>
+    //         m.ProjectId == project.Id &&
+    //         m.UserId == userId);
+
+    //     if (member == null) return false;
+
+    //     if (member.Role == MemberRole.Admin || member.Role == MemberRole.Contributor || member.Role == MemberRole.Owner) return true;
+
+    //     return false;
+    // }
+
+    public bool CanContribute(ProjectMember member)
     {
-        var member = await _db.ProjectMembers.FirstOrDefaultAsync(m =>
-            m.ProjectId == project.Id &&
-            m.UserId == userId);
-
-        if (member == null) return false;
-
         if (member.Role == MemberRole.Admin || member.Role == MemberRole.Contributor || member.Role == MemberRole.Owner) return true;
-
         return false;
     }
 
-    public async Task<bool> AdminPermissions(Guid projectId, Guid userId)
+    public async Task<bool> AdminPermissions(Project project, Guid userId)
     {
         return await _db.ProjectMembers.AnyAsync(m =>
-            m.ProjectId == projectId &&
+            m.ProjectId == project.Id &&
             m.UserId == userId &&
             (m.Role == MemberRole.Admin || m.Role == MemberRole.Owner));
     }

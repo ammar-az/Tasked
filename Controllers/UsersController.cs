@@ -58,33 +58,27 @@ public class UsersController : ControllerBase
     //     );
     // }
 
-    //should return: username, org, and email
-    //this is how a proper GET should look
     [HttpGet("{userId}")]
     public async Task<ActionResult<UserDto>> GetUserById(Guid userId)
     {
         var user = await _db.Users
-        .AsNoTracking()
-        .Where(u => u.Id == userId)
-        .Select(u => 
-            new UserDto()
-            {
-                Id = u.Id,
-                Username = u.Username,
-                OrgId = u.OrgId,
-                OrgName = u.Org == null ? null : u.Org.Name,
-                Email = u.Email
-            }).SingleOrDefaultAsync();
+            .AsNoTracking()
+            .Where(u => u.Id == userId)
+            .Select(u => 
+                new UserDto()
+                {
+                    Id = u.Id,
+                    Username = u.Username,
+                    OrgId = u.OrgId,
+                    OrgName = u.Org == null ? null : u.Org.Name,
+                    Email = u.Email
+                }).SingleOrDefaultAsync();
 
-        if(user == null)
-        {
-            return NotFound();
-        }
+        if(user is null) return NotFound();
 
         return Ok(user);
     }
 
-    //only user can delete own acc
     [HttpDelete]
     [Authorize]
     public async Task<ActionResult> DeleteUser()
@@ -92,23 +86,18 @@ public class UsersController : ControllerBase
         var userId = User.GetUserId();
 
         var user = await _db.Users
-        .Where(u => u.Id == userId)
-        .Select(u => 
-            new
-            {
-                self = u,
-                owns = u.OwnedProjects.Any()
-            }).SingleOrDefaultAsync();
+            .Where(u => u.Id == userId)
+            .Select(u => 
+                new
+                {
+                    self = u,
+                    owns = u.OwnedProjects.Any()
+                }).SingleOrDefaultAsync();
 
-        if(user == null)
-        {
-            return NotFound();
-        }
+        if(user is null) return NotFound();
+        
 
-        if(user.owns)
-        {
-            return Conflict("Cannot delete an account with active projects. Transfer ownership or delete projects first.");
-        }
+        if(user.owns) return Conflict("Cannot delete an account with active projects. Transfer ownership or delete projects first.");
 
         _db.Users.Remove(user.self);
         
@@ -187,7 +176,7 @@ public class UsersController : ControllerBase
     {
         var requesterId = User.GetNullableUserId();
 
-        var requester = requesterId == null 
+        var requester = requesterId is null 
             ? null 
             : await _db.Users
                 .AsNoTracking()
@@ -200,6 +189,7 @@ public class UsersController : ControllerBase
                 )
                 .FirstOrDefaultAsync();
 
+        //implements own visibility check
         var query = _db.ProjectMembers
             .AsNoTracking()
             .Where(m => m.UserId == userId)
@@ -212,7 +202,7 @@ public class UsersController : ControllerBase
                     )
                 );
 
-        if(request.Role != null) query = query.Where(m => m.Role == request.Role);
+        if(request.Role is not null) query = query.Where(m => m.Role == request.Role);
         else query = query.Where(m => m.Role != MemberRole.Banned);
 
         if(request.Owner) query = query.Where(m => m.Role == MemberRole.Owner);
@@ -239,8 +229,6 @@ public class UsersController : ControllerBase
         return Ok(memberships);
     }
 
-    //user should be able to change their email, password, and username + leave and join orgs
-
     [HttpPatch]
     [Authorize]
     public async Task<ActionResult<UserDto>> UpdateUser(UserUpdateRequest request)
@@ -248,32 +236,20 @@ public class UsersController : ControllerBase
         var username = request.Username;
         var email = request.Email;
 
-        if(username == null && email == null)
-        {
-            return BadRequest("No fields to update");
-        }
+        if(username is null && email is null) return BadRequest("No fields to update");
     
         var userId = User.GetUserId();
         
-        if(username == "")
-        {
-            return BadRequest("Invalid username");
-        }
+        if(username == "") return BadRequest("Invalid username");
 
         //this can actually check for valid email addresses instead eventually
-        if(email == "")
-        {
-            return BadRequest("Invalid email");
-        }
+        if(email == "") return BadRequest("Invalid email");
 
         var user = await _db.Users
-        .Where(u => u.Id == userId)
-        .SingleOrDefaultAsync();
+            .Where(u => u.Id == userId)
+            .SingleOrDefaultAsync();
 
-        if(user == null)
-        {
-            return NotFound();
-        }
+        if(user is null)return NotFound();
 
         user.Username = username ?? user.Username;
         user.Email = email ?? user.Email;
@@ -314,25 +290,25 @@ public class UsersController : ControllerBase
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
         
         var todos = await query
-        .OrderBy(t => t.ProjectId)
-        .ThenBy(t => t.IssueNo)
-        .Skip((page - 1) * pageSize)
-        .Take(pageSize)
-        .Select(t => 
-            new TodoDto
-            {
-                Id = t.Id,
-                ProjectId = t.ProjectId,
-                ProjectName = t.Project.Name,
-                Title = t.Title,
-                Description = t.Description,
-                Status = t.Status,
-                CreatedAt = t.CreatedAt,
-                Assigned = t.AssignedId,
-                IssueNo = t.IssueNo,
-                CreatedBy = t.CreatedById,
-                CreatedByName = t.CreatedBy == null ? null : t.CreatedBy.Username
-            }).ToListAsync();
+            .OrderBy(t => t.ProjectId)
+            .ThenBy(t => t.IssueNo)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(t => 
+                new TodoDto
+                {
+                    Id = t.Id,
+                    ProjectId = t.ProjectId,
+                    ProjectName = t.Project.Name,
+                    Title = t.Title,
+                    Description = t.Description,
+                    Status = t.Status,
+                    CreatedAt = t.CreatedAt,
+                    Assigned = t.AssignedId,
+                    IssueNo = t.IssueNo,
+                    CreatedBy = t.CreatedById,
+                    CreatedByName = t.CreatedBy == null ? null : t.CreatedBy.Username
+                }).ToListAsync();
 
         return Ok(todos);
     }

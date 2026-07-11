@@ -35,3 +35,9 @@ public record MemberOverviewRequest
     public int Page {get; init;} = 1;
     public int PageSize {get; init;} = 20;
 }
+
+public record MemberRoleChangeRequest
+{
+    required public Guid User {get; init;}
+    required public MemberRole Role {get; init;}
+}
