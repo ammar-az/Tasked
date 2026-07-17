@@ -3,5 +3,7 @@ namespace Tasked.Enums;
 public enum JoinPolicy
 {
     Open,
-    InviteOnly
+    InviteOnly,
+    Closed,
+    ViewOnly
 }

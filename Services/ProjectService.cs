@@ -10,8 +10,6 @@ public class ProjectService(ApplicationDbContext db)
 
     public async Task<bool> CanView(Project project, Guid? userId)
     {
-        //Actually returns true when:
-
         if (project.IsVisible) return true;
 
         if(userId == null) return false;
@@ -27,22 +25,8 @@ public class ProjectService(ApplicationDbContext db)
         return await _db.ProjectMembers.AnyAsync(m =>
             m.ProjectId == project.Id &&
             m.UserId == userId &&
-            m.Role != MemberRole.Banned && 
-            m.Role != MemberRole.Left);
+            m.Role != MemberRole.Banned);
     }
-
-    // public async Task<bool> CanContribute(Project project, Guid userId)
-    // {
-    //     var member = await _db.ProjectMembers.FirstOrDefaultAsync(m =>
-    //         m.ProjectId == project.Id &&
-    //         m.UserId == userId);
-
-    //     if (member == null) return false;
-
-    //     if (member.Role == MemberRole.Admin || member.Role == MemberRole.Contributor || member.Role == MemberRole.Owner) return true;
-
-    //     return false;
-    // }
 
     public bool CanContribute(ProjectMember member)
     {
@@ -65,18 +49,18 @@ public class ProjectService(ApplicationDbContext db)
 
     public async Task<bool> CanJoin(Project project, Guid userId)
     {
-        //Actually returns true when:
+        if (project.JoinPolicy == JoinPolicy.Open || project.JoinPolicy == JoinPolicy.ViewOnly) return true;
 
-        //Project has open join policy
-        //OR
-        //Invite system implemented ? later
+        if (project.JoinPolicy == JoinPolicy.InviteOnly)
+        {
+            var invite = await _db.ProjectMembers
+                .AsNoTracking()
+                .Where(m => m.ProjectId == project.Id && m.UserId == userId && m.Role == MemberRole.Invited)
+                .AnyAsync();
+
+            return invite;
+        }
         
-        //check for banned users can occur alongside checking preexisting membership by retaining banned users and giving them a role of banned instead of deleting the entry 
-
-        if (project.JoinPolicy == JoinPolicy.Open) return true;
-
-
-
         return false;
     }
 }

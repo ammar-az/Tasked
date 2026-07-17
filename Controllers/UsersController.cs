@@ -76,6 +76,53 @@ public class UsersController : ControllerBase
         return NoContent();
     }
 
+    [HttpPatch]
+    [Authorize]
+    public async Task<ActionResult<UserDto>> UpdateUser(UserUpdateRequest request)
+    {
+        var username = request.Username;
+        var email = request.Email;
+
+        if(username is null && email is null) return BadRequest("No fields to update");
+    
+        var userId = User.GetUserId();
+        
+        if(username == "") return BadRequest("Invalid username");
+
+        //this can actually check for valid email addresses instead eventually
+        if(email == "") return BadRequest("Invalid email");
+
+        var user = await _db.Users
+            .Where(u => u.Id == userId)
+            .SingleOrDefaultAsync();
+
+        if(user is null)return NotFound();
+
+        user.Username = username ?? user.Username;
+        user.Email = email ?? user.Email;
+        _db.Users.Update(user);
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch(DbUpdateException e)
+        {
+            return Conflict(e.InnerException?.Message);
+        }
+        
+        var dto = new UserDto()
+        {
+            Id = user.Id,
+            Username = user.Username,
+            OrgId = user.OrgId,
+            OrgName = user.Org?.Name,
+            Email = user.Email
+        };
+
+        return Ok(dto);
+    }
+
     [HttpGet("{userId}/projects")]
     public async Task<ActionResult> GetUserProjects(Guid userId , [FromQuery] MemberOverviewRequest request)
     {
@@ -134,52 +181,6 @@ public class UsersController : ControllerBase
         return Ok(memberships);
     }
 
-    [HttpPatch]
-    [Authorize]
-    public async Task<ActionResult<UserDto>> UpdateUser(UserUpdateRequest request)
-    {
-        var username = request.Username;
-        var email = request.Email;
-
-        if(username is null && email is null) return BadRequest("No fields to update");
-    
-        var userId = User.GetUserId();
-        
-        if(username == "") return BadRequest("Invalid username");
-
-        //this can actually check for valid email addresses instead eventually
-        if(email == "") return BadRequest("Invalid email");
-
-        var user = await _db.Users
-            .Where(u => u.Id == userId)
-            .SingleOrDefaultAsync();
-
-        if(user is null)return NotFound();
-
-        user.Username = username ?? user.Username;
-        user.Email = email ?? user.Email;
-        _db.Users.Update(user);
-
-        try
-        {
-            await _db.SaveChangesAsync();
-        }
-        catch(DbUpdateException e)
-        {
-            return Conflict(e.InnerException?.Message);
-        }
-        
-        var dto = new UserDto()
-        {
-            Id = user.Id,
-            Username = user.Username,
-            OrgId = user.OrgId,
-            OrgName = user.Org?.Name,
-            Email = user.Email
-        };
-
-        return Ok(dto);
-    }
 
     [HttpGet("todos")]
     [Authorize]
