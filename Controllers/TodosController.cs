@@ -23,7 +23,7 @@ public class TodosController : ControllerBase
         _auth = projectService;
     }
 
-    [HttpPost("projects/{projectId}")]
+    [HttpPost("project/{projectId}")]
     [Authorize]
     public async Task<IActionResult> CreateTodo(Guid projectId, [FromQuery] TodoRequest request)
     {
@@ -157,62 +157,6 @@ public class TodosController : ControllerBase
 
         return Ok(todo);
     }
-
-    
-    [HttpGet("projects/{projectId}")]
-    public  async Task<IActionResult> GetProjectTodos(Guid projectId, [FromQuery] GetManyTodosRequest request)
-    {   
-        var requesterId = User.GetNullableUserId();
-        var parent = await _db.Projects
-            .AsNoTracking()
-            .Where(p => p.Id == projectId)
-            .FirstOrDefaultAsync();
-
-        if(parent is null) return NotFound();
-
-        if(!await _auth.CanView(parent, requesterId)) return NotFound();
-
-        var query = _db.Todos
-            .AsNoTracking()
-            .Where(t => t.ProjectId == projectId);
-
-        if(!string.IsNullOrWhiteSpace(request.Search)) query = query.Where(t => t.Title.Contains(request.Search) || (!string.IsNullOrWhiteSpace(t.Description) && t.Description.Contains(request.Search)));
-        
-        if(request.Status is not null && Enum.IsDefined((TodoStatus) request.Status)) query = query.Where(t => t.Status == request.Status);
-        
-        if(request.Assigned is not null) query = query.Where(t => t.AssignedId == request.Assigned);
-        
-        query = query
-            .Include(t => t.Assigned)
-            .Include(t => t.CreatedBy);
-
-        var page = Math.Max(request.Page, 1);
-        var pageSize = Math.Clamp(request.PageSize, 1, 100);
-
-        var todos = await query
-            .OrderBy(t => t.IssueNo)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(t => 
-                new TodoDto()
-                {
-                    Id = t.Id,
-                    ProjectId = t.ProjectId,
-                    ProjectName = t.Project.Name,
-                    Title = t.Title,
-                    Description = t.Description,
-                    Status = t.Status,
-                    CreatedAt = t.CreatedAt,
-                    Assigned = t.AssignedId,
-                    AssignedName = t.Assigned == null ? null : t.Assigned.Username,
-                    IssueNo = t.IssueNo,
-                    CreatedBy = t.CreatedById,
-                    CreatedByName = t.CreatedBy == null ? null : t.CreatedBy.Username
-                }).ToListAsync();
-
-        return Ok(todos);
-    }
-
 
     [HttpPatch("{todoId}/assign/{userId}")]
     [Authorize]

@@ -165,7 +165,7 @@ public class OrgsController : ControllerBase
     }
 
     //add/remove users from org 
-    [HttpPatch("{orgId}/add-user")]
+    [HttpPatch("{orgId}/join")]
     [Authorize]
     public async Task<IActionResult> AddUser(Guid orgId)
     {
@@ -207,7 +207,7 @@ public class OrgsController : ControllerBase
         return Ok();
     }
     
-    [HttpPatch("{orgId}/remove-user")]
+    [HttpPatch("{orgId}/leave")]
     [Authorize]
     public async Task<IActionResult> RemoveUser(Guid orgId)
     {

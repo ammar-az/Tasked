@@ -181,7 +181,6 @@ public class UsersController : ControllerBase
         return Ok(memberships);
     }
 
-
     [HttpGet("todos")]
     [Authorize]
     public async Task<ActionResult<IEnumerable<TodoDto>>> GetUserTodos([FromQuery] GetManyTodosRequest request)
