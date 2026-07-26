@@ -12,7 +12,7 @@ using Tasked.Data;
 namespace Tasked.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260711202323_InitialCreate")]
+    [Migration("20260726022742_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -128,6 +128,42 @@ namespace Tasked.Migrations
                         .HasDatabaseName("ix_project_members_user_id");
 
                     b.ToTable("project_members", (string)null);
+                });
+
+            modelBuilder.Entity("Tasked.Entities.RefreshToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("token_hash");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_refresh_tokens");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_refresh_tokens_expires_at");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_refresh_tokens_user_id");
+
+                    b.ToTable("refresh_tokens", (string)null);
                 });
 
             modelBuilder.Entity("Tasked.Entities.Todo", b =>
@@ -265,6 +301,18 @@ namespace Tasked.Migrations
                         .HasConstraintName("fk_project_members_users_user_id");
 
                     b.Navigation("Project");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Tasked.Entities.RefreshToken", b =>
+                {
+                    b.HasOne("Tasked.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_refresh_tokens_users_user_id");
 
                     b.Navigation("User");
                 });

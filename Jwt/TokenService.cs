@@ -10,7 +10,7 @@ public class TokenService(IConfiguration config)
 {
     private readonly IConfiguration _config = config;
 
-    public string CreateToken(User user)
+    public string CreateAccessToken(User user)
     {
         var jwt = _config.GetSection("Jwt");
         var claims = new List<Claim>

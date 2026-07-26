@@ -32,4 +32,5 @@ public class ApplicationDbContext : DbContext
     public DbSet<Todo> Todos => Set<Todo>();
     public DbSet<User> Users => Set<User>();
     public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 }

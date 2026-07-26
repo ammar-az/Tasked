@@ -78,9 +78,10 @@ var app = builder.Build();
 app.UseHttpsRedirection();
 
 app.UseCors(policy => policy
-    .AllowAnyOrigin()
+    .WithOrigins("http://localhost:5173")
     .AllowAnyMethod()
-    .AllowAnyHeader());
+    .AllowAnyHeader()
+    .AllowCredentials());
     
 app.UseSwagger();
 app.UseSwaggerUI();

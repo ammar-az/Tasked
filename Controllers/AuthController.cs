@@ -7,6 +7,8 @@ using Tasked.DTOs;
 using Tasked.Entities;
 using Tasked.Jwt;
 using Tasked.Services;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Tasked.Controllers;
 
@@ -44,16 +46,26 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
         user.Password = _hasher.HashPassword(user, dto.Password);
 
         _db.Users.Add(user);
-        await _db.SaveChangesAsync();
+        
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch(DbUpdateException e)
+        {
+            return Conflict(e.InnerException?.Message);
+        }
 
-        var token = _tokenService.CreateToken(user);
+        var token = _tokenService.CreateAccessToken(user);
 
-        return Ok(new AuthResponse(token, user.Id, user.Username));
+        return await NewSession(user);
     }
 
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginRequest dto)
     {
+        await PurgeExpired();
+
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
         if (user == null)
             return Unauthorized("Invalid email or password.");
@@ -62,17 +74,65 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
         if (result == PasswordVerificationResult.Failed)
             return Unauthorized("Invalid email or password.");
 
-        var token = _tokenService.CreateToken(user);
+        return await NewSession(user);
+    }
 
-        return Ok(new AuthResponse(token, user.Id, user.Username));
+    [HttpPost("refresh")]
+    public async Task<IActionResult> Refresh()
+    {
+        await PurgeExpired();
+
+        if (!Request.Cookies.TryGetValue("tasked_refresh", out var token))
+            return Unauthorized();
+
+        var tokenHash = HashToken(token);
+
+        var existingToken = await _db.RefreshTokens
+            .Where(t => t.TokenHash == tokenHash)
+            .Include(t => t.User)
+            .FirstOrDefaultAsync();
+
+        if(existingToken is null)
+            return Unauthorized();
+
+        _db.RefreshTokens.Remove(existingToken);
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch(DbUpdateException e)
+        {
+            return Conflict(e.InnerException?.Message);
+        }
+
+        return await NewSession(existingToken.User);
+    }
+
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout()
+    {
+        if (Request.Cookies.TryGetValue("tasked_refresh", out var token))
+        {
+            var tokenHash = HashToken(token);
+
+            await _db.RefreshTokens
+                .Where(t => t.TokenHash == tokenHash)
+                .Include(t => t.User)
+                .ExecuteDeleteAsync();            
+        }
+        
+        Response.Cookies.Delete(
+            "tasked_refresh",
+            new CookieOptions{ Path = "api/auth" }
+        );
+
+        return NoContent();
     }
 
     [HttpGet("me")]
     public async Task<IActionResult> GetCurrentUser()
     {
-        //var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        //if (userId == null) return Unauthorized();
-
         var userId = User.GetUserId();
 
         var user = await _db.Users.FindAsync(userId);
@@ -86,4 +146,70 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
             user.OrgId
         });
     }
+    
+    private async Task<IActionResult> NewSession(User user)
+    {
+        var accessToken = _tokenService.CreateAccessToken(user);
+        var refreshToken = CreateRefreshToken();
+
+        _db.RefreshTokens.Add(new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            TokenHash = HashToken(refreshToken),
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddDays(14),
+        });
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch(DbUpdateException e)
+        {
+            return Conflict(e.InnerException?.Message);
+        }
+
+        Response.Cookies.Append(
+            "tasked_refresh",
+            refreshToken,
+            CreateRefreshCookieOptions()
+        );
+
+        return Ok(new AuthResponse(accessToken, user.Id, user.Username));
+    }
+
+    private async Task PurgeExpired()
+    {
+        await _db.RefreshTokens
+            .Where(token => token.ExpiresAt <= DateTime.UtcNow)
+            .ExecuteDeleteAsync();
+    }
+
+    private static string CreateRefreshToken()
+    {
+        var bytes = RandomNumberGenerator.GetBytes(64);
+        bytes = SHA256.HashData(Encoding.UTF8.GetBytes(Convert.ToBase64String(bytes)));
+        return Convert.ToBase64String(bytes);
+    }
+    
+    private static string HashToken(string token)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+
+        return Convert.ToHexString(bytes);
+    }
+
+    private static CookieOptions CreateRefreshCookieOptions()
+    {
+        return new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = false,
+            SameSite = SameSiteMode.Lax,
+            Expires = DateTimeOffset.UtcNow.AddDays(14),
+            Path = "api/auth"
+        };
+    }
+
 }
