@@ -158,6 +158,44 @@ public class TodosController : ControllerBase
         return Ok(todo);
     }
 
+    [HttpGet("project/{projectId}/{issueNo}")]
+    public async Task<IActionResult> GetTodoByNo(Guid projectId, int issueNo)
+    {
+        var requesterId = User.GetNullableUserId();
+        
+        var todo = await _db.Todos
+            .AsNoTracking()
+            .Where(t => t.ProjectId == projectId && t.IssueNo == issueNo)
+            .Select(t => 
+                new TodoDto()
+                {
+                    Id = t.Id,
+                    ProjectId = t.ProjectId,
+                    ProjectName = t.Project.Name,
+                    Title = t.Title,
+                    Description = t.Description,
+                    Status = t.Status,
+                    CreatedAt = t.CreatedAt,
+                    Assigned = t.AssignedId,
+                    IssueNo = t.IssueNo,
+                    CreatedBy = t.CreatedById,
+                    CreatedByName = t.CreatedBy == null ? null : t.CreatedBy.Username
+                }).SingleOrDefaultAsync();
+
+        if(todo is null) return NotFound();
+        
+        var parent = await _db.Projects
+            .AsNoTracking()
+            .Where(p => p.Id == todo.ProjectId)
+            .FirstOrDefaultAsync();
+
+        if(parent is null) return StatusCode(500);
+
+        if(!await _auth.CanView(parent, requesterId)) return NotFound();
+
+        return Ok(todo);
+    }
+
     [HttpPatch("{todoId}/assign/{userId}")]
     [Authorize]
     //Make DTO?

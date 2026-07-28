@@ -21,12 +21,33 @@ public class UsersController : ControllerBase
         _db = db;
     }
 
-    [HttpGet("{userId}")]
-    public async Task<ActionResult<UserDto>> GetUserById(Guid userId)
+    // [HttpGet("{userId}")]
+    // public async Task<ActionResult<UserDto>> GetUserById(Guid userId)
+    // {
+    //     var user = await _db.Users
+    //         .AsNoTracking()
+    //         .Where(u => u.Id == userId)
+    //         .Select(u => 
+    //             new UserDto()
+    //             {
+    //                 Id = u.Id,
+    //                 Username = u.Username,
+    //                 OrgId = u.OrgId,
+    //                 OrgName = u.Org == null ? null : u.Org.Name,
+    //                 Email = u.Email
+    //             }).SingleOrDefaultAsync();
+
+    //     if(user is null) return NotFound();
+
+    //     return Ok(user);
+    // }
+
+    [HttpGet("{username}")]
+    public async Task<ActionResult<UserDto>> GetUserByName(string username)
     {
         var user = await _db.Users
             .AsNoTracking()
-            .Where(u => u.Id == userId)
+            .Where(u => u.Username == username)
             .Select(u => 
                 new UserDto()
                 {
