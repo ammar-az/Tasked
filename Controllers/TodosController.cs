@@ -25,7 +25,7 @@ public class TodosController : ControllerBase
 
     [HttpPost("project/{projectId}")]
     [Authorize]
-    public async Task<IActionResult> CreateTodo(Guid projectId, [FromQuery] TodoRequest request)
+    public async Task<IActionResult> CreateTodo(Guid projectId, TodoRequest request)
     {
         if(!Enum.IsDefined(request.Status)) return BadRequest("Invalid status");
         await using var transaction = await _db.Database.BeginTransactionAsync();
@@ -48,6 +48,7 @@ public class TodosController : ControllerBase
             Status = request.Status,
             CreatedAt = DateTime.UtcNow,
             CreatedById = requesterId,
+            AssignedId = request.SelfAssign ? requesterId : null,
             IssueNo = membership.Project.IssueCount + 1
         };
 
@@ -322,7 +323,7 @@ public class TodosController : ControllerBase
 
     [HttpPatch("{todoId}")]
     [Authorize]
-    public async Task<IActionResult> UpdateTodo(Guid todoId, [FromQuery] TodoUpdateRequest request)
+    public async Task<IActionResult> UpdateTodo(Guid todoId, TodoUpdateRequest request)
     {
         var requesterId = User.GetUserId();
 

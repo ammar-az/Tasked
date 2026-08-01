@@ -135,15 +135,20 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
     {
         var userId = User.GetUserId();
 
-        var user = await _db.Users.FindAsync(userId);
+        var user = await _db.Users
+        .Where(u => u.Id == userId)
+        .Include(u => u.Org)
+        .SingleOrDefaultAsync();
+
         if (user == null) return NotFound();
 
-        return Ok(new
+        return Ok(new UserDto()
         {
-            user.Id,
-            user.Username,
-            user.Email,
-            user.OrgId
+            Id = user.Id,
+            Username = user.Username,
+            OrgId = user.OrgId,
+            OrgName = user.Org?.Name,
+            Email = user.Email
         });
     }
     
@@ -170,13 +175,22 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
             return Conflict(e.InnerException?.Message);
         }
 
+        var dto = new UserDto
+        {
+            Id = user.Id,
+            Username = user.Username,
+            OrgId = user.OrgId,
+            OrgName = null,
+            Email = user.Email
+        };
+
         Response.Cookies.Append(
             "tasked_refresh",
             refreshToken,
             CreateRefreshCookieOptions()
         );
 
-        return Ok(new AuthResponse(accessToken, user.Id, user.Username));
+        return Ok(new AuthResponse(accessToken, dto));
     }
 
     private async Task PurgeExpired()

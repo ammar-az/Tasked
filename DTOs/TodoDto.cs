@@ -23,7 +23,7 @@ public record TodoRequest
     required public string Title {get; init;}
     public string? Description {get; init;}
     required public TodoStatus Status {get; init;} = TodoStatus.Backlog;
-    public Guid? Assigned {get; init;}
+    required public bool SelfAssign  {get; init;} = false;
 }
 
 public record TodoUpdateRequest
