@@ -140,6 +140,7 @@ public class TodosController : ControllerBase
                     Status = t.Status,
                     CreatedAt = t.CreatedAt,
                     Assigned = t.AssignedId,
+                    AssignedName = t.Assigned == null ? null : t.Assigned.Username,
                     IssueNo = t.IssueNo,
                     CreatedBy = t.CreatedById,
                     CreatedByName = t.CreatedBy == null ? null : t.CreatedBy.Username
@@ -178,6 +179,7 @@ public class TodosController : ControllerBase
                     Status = t.Status,
                     CreatedAt = t.CreatedAt,
                     Assigned = t.AssignedId,
+                    AssignedName = t.Assigned == null ? null : t.Assigned.Username,
                     IssueNo = t.IssueNo,
                     CreatedBy = t.CreatedById,
                     CreatedByName = t.CreatedBy == null ? null : t.CreatedBy.Username
@@ -352,7 +354,15 @@ public class TodosController : ControllerBase
 
         todo.Description = request.Description ?? todo.Description;
 
-        if(request.Status is not null && Enum.IsDefined((TodoStatus) request.Status)) todo.Status = (TodoStatus) request.Status;
+        if(request.Status is not null && Enum.IsDefined((TodoStatus)request.Status))
+        {
+            todo.Status = (TodoStatus) request.Status;
+            if(request.Status == TodoStatus.Archived || request.Status == TodoStatus.Completed)
+            {
+                todo.AssignedId = null;
+                todo.Assigned = null;
+            }
+        } 
 
         try
         {

@@ -136,20 +136,21 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
         var userId = User.GetUserId();
 
         var user = await _db.Users
-        .Where(u => u.Id == userId)
-        .Include(u => u.Org)
-        .SingleOrDefaultAsync();
+            .AsNoTracking()
+            .Where(u => u.Id == userId)
+            .Select(u => 
+                new UserDto()
+                {
+                    Id = u.Id,
+                    Username = u.Username,
+                    OrgId = u.OrgId,
+                    OrgName = u.Org == null ? null : u.Org.Name,
+                    Email = u.Email
+                }).SingleOrDefaultAsync();
 
         if (user == null) return NotFound();
 
-        return Ok(new UserDto()
-        {
-            Id = user.Id,
-            Username = user.Username,
-            OrgId = user.OrgId,
-            OrgName = user.Org?.Name,
-            Email = user.Email
-        });
+        return Ok(user);
     }
     
     private async Task<IActionResult> NewSession(User user)

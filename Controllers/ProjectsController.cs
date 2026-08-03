@@ -435,6 +435,30 @@ public class ProjectsController : ControllerBase
         return Ok(members);
     }
 
+    [HttpGet("{projectId}/members/me")]
+    public async Task<IActionResult> GetMember(Guid projectId)
+    {
+        var requesterId = User.GetNullableUserId();
+        if (requesterId == null) return NoContent();
+
+        var member = await _db.ProjectMembers
+            .Where(m => m.ProjectId == projectId && m.UserId == requesterId)
+            .Select(m => 
+                new MemberDto()
+                {
+                    UserId = m.UserId,
+                    Username = m.User.Username,
+                    ProjectId = m.ProjectId,
+                    ProjectName = m.Project.Name,
+                    Role = m.Role,
+                    JoinTime = m.JoinTime
+                }).SingleOrDefaultAsync();
+
+        if(member is null) return NoContent();
+    
+        return Ok(member);
+    }
+
     [HttpGet("{projectId}/todos")]
     public  async Task<IActionResult> GetProjectTodos(Guid projectId, [FromQuery] GetManyTodosRequest request)
     {   
