@@ -121,7 +121,7 @@ public class ProjectsController : ControllerBase
     
     [HttpPatch("{projectId}")]
     [Authorize]
-    public async Task<IActionResult> EditProject(Guid projectId, [FromQuery] ProjectUpdateRequest request)
+    public async Task<IActionResult> EditProject(Guid projectId, ProjectUpdateRequest request)
     {
         var userId = User.GetUserId();
 
@@ -582,7 +582,7 @@ public class ProjectsController : ControllerBase
 
     [HttpPatch("{projectId}/members/")]
     [Authorize]
-    public async Task<IActionResult> ChangeRole(Guid projectId, [FromQuery] MemberRoleChangeRequest request)
+    public async Task<IActionResult> ChangeRole(Guid projectId, MemberRoleChangeRequest request)
     {   
         if(!Enum.IsDefined(request.Role)) return BadRequest("Invalid Role");
 
