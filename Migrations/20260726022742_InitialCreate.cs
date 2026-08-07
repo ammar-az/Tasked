@@ -31,8 +31,7 @@ namespace Tasked.Migrations
                     username = table.Column<string>(type: "text", nullable: false),
                     org_id = table.Column<Guid>(type: "uuid", nullable: true),
                     email = table.Column<string>(type: "text", nullable: false),
-                    password = table.Column<string>(type: "text", nullable: false),
-                    salt = table.Column<string>(type: "text", nullable: false)
+                    password = table.Column<string>(type: "text", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -54,7 +53,9 @@ namespace Tasked.Migrations
                     name = table.Column<string>(type: "text", nullable: false),
                     description = table.Column<string>(type: "text", nullable: true),
                     is_visible = table.Column<bool>(type: "boolean", nullable: false),
-                    issue_count = table.Column<int>(type: "integer", nullable: false)
+                    issue_count = table.Column<int>(type: "integer", nullable: false),
+                    join_policy = table.Column<int>(type: "integer", nullable: false),
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -73,12 +74,34 @@ namespace Tasked.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "refresh_tokens",
+                columns: table => new
+                {
+                    id = table.Column<Guid>(type: "uuid", nullable: false),
+                    user_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    token_hash = table.Column<string>(type: "text", nullable: false),
+                    expires_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("pk_refresh_tokens", x => x.id);
+                    table.ForeignKey(
+                        name: "fk_refresh_tokens_users_user_id",
+                        column: x => x.user_id,
+                        principalTable: "users",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "project_members",
                 columns: table => new
                 {
                     project_id = table.Column<Guid>(type: "uuid", nullable: false),
                     user_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    role = table.Column<int>(type: "integer", nullable: false)
+                    role = table.Column<int>(type: "integer", nullable: false),
+                    join_time = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -106,9 +129,10 @@ namespace Tasked.Migrations
                     title = table.Column<string>(type: "text", nullable: false),
                     description = table.Column<string>(type: "text", nullable: true),
                     status = table.Column<int>(type: "integer", nullable: false),
-                    assigned_id = table.Column<Guid>(type: "uuid", nullable: true),
                     created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    issue_no = table.Column<int>(type: "integer", nullable: false)
+                    issue_no = table.Column<int>(type: "integer", nullable: false),
+                    assigned_id = table.Column<Guid>(type: "uuid", nullable: true),
+                    created_by_id = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -123,7 +147,14 @@ namespace Tasked.Migrations
                         name: "fk_todos_users_assigned_id",
                         column: x => x.assigned_id,
                         principalTable: "users",
-                        principalColumn: "id");
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "fk_todos_users_created_by_id",
+                        column: x => x.created_by_id,
+                        principalTable: "users",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.SetNull);
                 });
 
             migrationBuilder.CreateIndex(
@@ -154,9 +185,24 @@ namespace Tasked.Migrations
                 column: "owner_id");
 
             migrationBuilder.CreateIndex(
+                name: "ix_refresh_tokens_expires_at",
+                table: "refresh_tokens",
+                column: "expires_at");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_refresh_tokens_user_id",
+                table: "refresh_tokens",
+                column: "user_id");
+
+            migrationBuilder.CreateIndex(
                 name: "ix_todos_assigned_id",
                 table: "todos",
                 column: "assigned_id");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_todos_created_by_id",
+                table: "todos",
+                column: "created_by_id");
 
             migrationBuilder.CreateIndex(
                 name: "ix_todos_project_id_issue_no",
@@ -187,6 +233,9 @@ namespace Tasked.Migrations
         {
             migrationBuilder.DropTable(
                 name: "project_members");
+
+            migrationBuilder.DropTable(
+                name: "refresh_tokens");
 
             migrationBuilder.DropTable(
                 name: "todos");

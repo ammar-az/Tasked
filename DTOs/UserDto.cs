@@ -1,10 +1,16 @@
 namespace Tasked.DTOs;
 
-public class UserDto
+public record UserDto
 {
-    public Guid Id {get; set;}
-    public string Username {get; set;} = "";
-    public Guid? OrgId {get; set;} 
-    public string? OrgName {get; set;} 
-    public string Email {get; set;} = "";
+    required public Guid Id {get; init;}
+    required public string Username {get; init;} 
+    public Guid? OrgId {get; init;}    
+    public string? OrgName {get; init;}
+    required public string Email {get; init;} 
+}
+
+public record UserUpdateRequest
+{
+    public string? Username {get; init;}
+    public string? Email {get; init;}
 }

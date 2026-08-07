@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Tasked.Data;
 using Tasked.DTOs;
 using Tasked.Entities;
+using Tasked.Services;
 
 namespace Tasked.Controllers;
 
@@ -132,10 +134,14 @@ public class OrgsController : ControllerBase
             {
                 Id = p.Id,
                 OwnerId = p.OwnerId,
+                OwnerName = p.Owner.Username,
                 Name = p.Name,
                 Description = p.Description,
                 OrgId = p.OrgId,
-                OrgName = p.Org == null ? null : p.Org.Name
+                OrgName = p.Org == null ? null : p.Org.Name,
+                CreatedAt = p.CreatedAt,
+                IsVisible = p.IsVisible,
+                JoinPolicy = p.JoinPolicy
             }).ToListAsync();
 
         return Ok(projects);
@@ -159,9 +165,12 @@ public class OrgsController : ControllerBase
     }
 
     //add/remove users from org 
-    [HttpPatch("{orgId}/users/{userId}")]
-    public async Task<IActionResult> AddUser(Guid orgId, Guid userId)
+    [HttpPatch("{orgId}/join")]
+    [Authorize]
+    public async Task<IActionResult> AddUser(Guid orgId)
     {
+        var userId = User.GetUserId();
+
         var user = await _db.Users
         .Where(u => u.Id == userId)
         .SingleOrDefaultAsync();
@@ -198,9 +207,12 @@ public class OrgsController : ControllerBase
         return Ok();
     }
     
-    [HttpPatch("{orgId}/users/{userId}/remove")]
-    public async Task<IActionResult> RemoveUser(Guid orgId, Guid userId)
+    [HttpPatch("{orgId}/leave")]
+    [Authorize]
+    public async Task<IActionResult> RemoveUser(Guid orgId)
     {
+        var userId = User.GetUserId();
+
         var user = await _db.Users
         .Where(u => u.Id == userId)
         .SingleOrDefaultAsync();

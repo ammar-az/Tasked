@@ -1,7 +1,7 @@
 namespace Tasked.DTOs;
 
-public class OrgDto
+public record OrgDto
 {
-    public Guid Id {get; set;}
-    public string Name {get; set;} = "";
+    public Guid Id {get; init;}
+    required public string Name {get; init;}
 }

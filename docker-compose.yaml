@@ -15,3 +15,8 @@ services:
       POSTGRES_DB: tasked
     ports:
       - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+
+volumes:
+  pgdata:      

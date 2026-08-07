@@ -1,9 +1,11 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Tasked.Data;
 using Tasked.DTOs;
 using Tasked.Entities;
 using Tasked.Enums;
+using Tasked.Services;
 
 namespace Tasked.Controllers;
 
@@ -12,33 +14,46 @@ namespace Tasked.Controllers;
 public class ProjectsController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
+    private readonly ProjectService _auth;
 
-    public ProjectsController(ApplicationDbContext db)
+    public ProjectsController(ApplicationDbContext db, ProjectService projectService)
     {
         _db = db;
+        _auth = projectService;
     }
 
-    //create project | add org, description, visibility 
     [HttpPost]
-    public async Task<IActionResult> CreateProject(Guid userId, Guid? orgId, string name, string? description, bool? isVisible)
+    [Authorize]
+    public async Task<IActionResult> CreateProject(ProjectRequest request)
     {
+        var userId = User.GetUserId();
+
+        var user = await _db.Users
+            .Where(u => u.Id == userId)
+            .Include(u => u.Org)
+            .SingleOrDefaultAsync();
+
+        if(user is null) return Conflict();
+        
         var project = new Project
         {
             Id = Guid.NewGuid(),
-            OrgId = orgId,
+            OrgId = request.Org ? user.OrgId : null,
             OwnerId = userId,
-            Name = name,
-            Description = description,
-            IsVisible = isVisible ?? true
+            Name = request.Name,
+            Description = request.Description,
+            IsVisible = request.IsVisible,
+            JoinPolicy = request.JoinPolicy,
+            CreatedAt = DateTime.UtcNow
         };
 
         var projectMember = new ProjectMember
         {
             ProjectId = project.Id,
             UserId = userId,
-            Role = Enums.MemberRole.Owner
+            Role = MemberRole.Owner,
+            JoinTime = DateTime.UtcNow
         };
-
 
         _db.Projects.Add(project);
         _db.ProjectMembers.Add(projectMember);
@@ -56,9 +71,14 @@ public class ProjectsController : ControllerBase
         {
             Id = project.Id,
             OwnerId = project.OwnerId,
+            OwnerName = user.Username,
             Name = project.Name,
             Description = project.Description,
-            OrgId = project.OrgId
+            OrgId = project.OrgId,
+            OrgName = user.Org?.Name,
+            IsVisible = project.IsVisible,
+            JoinPolicy = project.JoinPolicy,
+            CreatedAt = project.CreatedAt
         };
 
         return CreatedAtAction(
@@ -68,59 +88,152 @@ public class ProjectsController : ControllerBase
         );
     }
 
-    //Should only succeed if public, private but member of org, or private but member
     [HttpGet("{projectId}")]
-    public async Task<IActionResult> GetProject(Guid projectId)
+    public async Task<ActionResult<ProjectDto>> GetProject(Guid projectId)
     {
-        var project = await _db.Projects
-        .AsNoTracking()
-        .Where(p => p.Id == projectId)
-        .Select(p => 
-            new ProjectDto()
-            {
-                Id = p.Id,
-                OwnerId = p.OwnerId,
-                Name = p.Name,
-                Description = p.Description,
-                OrgId = p.OrgId
-            }).SingleOrDefaultAsync();
+        var requesterId = User.GetNullableUserId();
 
-        if(project == null)
+        var p = await _db.Projects
+            .AsNoTracking()
+            .Where(p => p.Id == projectId)
+            .Include(p => p.Owner)
+            .SingleOrDefaultAsync();
+
+        if(p is null) return NotFound();
+
+        if(!await _auth.CanView(p, requesterId)) return NotFound();
+
+        var dto = new ProjectDto()
         {
-            return NotFound();
-        }
+            Id = p.Id,
+            OwnerId = p.OwnerId,
+            OwnerName = p.Owner.Username,
+            Name = p.Name,
+            Description = p.Description,
+            OrgId = p.OrgId,
+            IsVisible = p.IsVisible,
+            JoinPolicy = p.JoinPolicy,
+            CreatedAt = p.CreatedAt
+        };
 
-        return Ok(project);
+        return Ok(dto);
     }
     
+    [HttpPatch("{projectId}")]
+    [Authorize]
+    public async Task<IActionResult> EditProject(Guid projectId, ProjectUpdateRequest request)
+    {
+        var userId = User.GetUserId();
+
+        var project = await _db.Projects
+            .Where(p => p.Id == projectId)
+            .Include(p => p.Org)
+            .Include(p => p.Owner)
+            .SingleOrDefaultAsync();
+
+        if(project is null) return NotFound();
+
+        var admin = await _auth.AdminPermissions(project, userId);
+        if(!admin) return Forbid();
+
+        if(request.Name != "") project.Name = request.Name ?? project.Name;
+
+        project.Description = request.Description ?? project.Description;
+        project.IsVisible = request.IsVisible ?? project.IsVisible;
+        project.JoinPolicy = request.JoinPolicy ?? project.JoinPolicy;
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch(DbUpdateException e)
+        {
+            return Conflict(e.InnerException?.Message);
+        }
+
+        var dto = new ProjectDto()
+        {
+            Id = project.Id,
+            OwnerId = project.OwnerId,
+            OwnerName = project.Owner.Username,
+            Name = project.Name,
+            Description = project.Description,
+            OrgId = project.OrgId,
+            OrgName = project.Org?.Name,
+            IsVisible = project.IsVisible,
+            JoinPolicy = project.JoinPolicy,
+            CreatedAt = project.CreatedAt
+        };
+
+        return Ok(dto);
+    }
+
     //Only owner can do this
     [HttpDelete("{projectId}")]
+    [Authorize]
     public async Task<IActionResult> DeleteProject(Guid projectId)
     {
+        var userId = User.GetUserId();
+        
         var deleted = await _db.Projects
-        .Where(p => p.Id == projectId)
-        .ExecuteDeleteAsync();
+            .Where(p => p.Id == projectId && p.OwnerId == userId)
+            .ExecuteDeleteAsync();
 
-        if(deleted == 0)
-        {
-            return NotFound();
-        }
+        if(deleted == 0) return Forbid();
 
         return NoContent();
     }
 
-    //add member to project
-    [HttpPost("{projectId}/members")]
-    public async Task<IActionResult> NewMembership(Guid projectId, Guid userId)
+    [HttpPost("{projectId}/join")]
+    [Authorize]
+    public async Task<IActionResult> JoinProject(Guid projectId)
     {
+        var userId = User.GetUserId();
+
+        var project = await _db.Projects
+            .AsNoTracking()
+            .Where(p => p.Id == projectId)
+            .SingleOrDefaultAsync();
+
+        if(project == null) return NotFound();
+
+        var visible = await _auth.CanView(project, userId);
+
+        if(!visible) return NotFound();
+
+        var permit = await _auth.CanJoin(project, userId);
+
+        if(!permit) return Forbid();
+
+        var preexisting = await _db.ProjectMembers
+            .Where(m => m.ProjectId == projectId && m.UserId == userId)
+            .SingleOrDefaultAsync();
+
+        if(preexisting is not null)
+        {
+            if(preexisting.Role == MemberRole.Banned) return Forbid();
+            
+            else if(preexisting.Role != MemberRole.Invited) return Conflict();
+        }
+
         var membership = new ProjectMember
         {
             ProjectId = projectId,
             UserId = userId,
-            Role = MemberRole.Contributor
+            Role = project.JoinPolicy == JoinPolicy.ViewOnly ?  MemberRole.Viewer : MemberRole.Contributor ,
+            JoinTime = DateTime.UtcNow
         };
 
-        _db.ProjectMembers.Add(membership);
+        if (preexisting is null)
+        {
+            _db.ProjectMembers.Add(membership);
+        }
+        else
+        {
+            preexisting.Role = membership.Role;
+            preexisting.JoinTime = DateTime.UtcNow;
+        }
+
         try
         {
             await _db.SaveChangesAsync();
@@ -134,7 +247,10 @@ public class ProjectsController : ControllerBase
         {
             ProjectId = membership.ProjectId,
             UserId = membership.UserId,
-            Role = membership.Role
+            Username = User.Identity?.Name ?? "",
+            ProjectName = project.Name,
+            Role = membership.Role,
+            JoinTime = membership.JoinTime
         };
 
         return CreatedAtAction(
@@ -144,66 +260,120 @@ public class ProjectsController : ControllerBase
         );
     }
 
-    //get all members of a project, same visible check as before, 
-    [HttpGet("{projectId}/members")]
-        public async Task<IActionResult> GetMembers(Guid projectId)
-    {   
-        var members = await _db.ProjectMembers
-        .AsNoTracking()
-        .Where(member => member.ProjectId == projectId)
-        .Select(m => 
-            new MemberDto()
-            {
-                UserId = m.UserId,
-                Username = m.User.Username,
-                ProjectId = m.ProjectId,
-                ProjectName = m.Project.Name,
-                Role = m.Role
-            }).ToListAsync();
+    [HttpPost("{projectId}/invite/{userId}")]
+    [Authorize]
+    public async Task<IActionResult> InviteToProject(Guid projectId, Guid userId)
+    {
+        var requesterId = User.GetUserId();
 
-        return Ok(members);
+        var project = await _db.Projects
+            .AsNoTracking()
+            .Where(p => p.Id == projectId)
+            .SingleOrDefaultAsync();
+
+        if(project == null) return NotFound();
+
+        var admin = await _auth.AdminPermissions(project, requesterId);
+
+        if(!admin) return Forbid();
+
+        var preexisting = await _db.ProjectMembers
+            .AsNoTracking()
+            .Where(m => m.ProjectId == projectId && m.UserId == userId)
+            .AnyAsync();
+
+        if(preexisting) return Conflict();
+
+        var membership = new ProjectMember
+        {
+            ProjectId = projectId,
+            UserId = userId,
+            Role = MemberRole.Invited,
+            JoinTime = DateTime.UtcNow
+        };
+
+        _db.ProjectMembers.Add(membership);
+        
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch(DbUpdateException e)
+        {
+            return Conflict(e.InnerException?.Message);
+        }
+
+        var dto = new MemberDto()
+        {
+            ProjectId = membership.ProjectId,
+            UserId = membership.UserId,
+            Username = User.Identity?.Name ?? "",
+            ProjectName = project.Name,
+            Role = membership.Role,
+            JoinTime = membership.JoinTime
+        };
+
+        return CreatedAtAction(
+            nameof(GetMembers), 
+            new { projectId }, 
+            dto
+        );
     }
 
-    //only an admin or owner can remove users other than themselves. Must handle case where owner leaves
-    //auth check might be: if issuer wants to remove themselves, allow if not the owner. If issuer wants to remove someone else, check if permitted
-    [HttpDelete("{projectId}/members/{userId}")]
-    public async Task<IActionResult> LeaveProject(Guid projectId, Guid userId)
+    [HttpDelete("{projectId}/reject")]
+    [Authorize]
+    public async Task<IActionResult> RejectInvite(Guid projectId)
     {
+        var userId = User.GetUserId();
         var member = await _db.ProjectMembers
-        .Where(m => m.ProjectId == projectId && m.UserId == userId)
-        .Select(m => new 
-            {
-                self = m,
-                m.ProjectId,
-                m.UserId,
-                m.Role,
-                m.Project.OwnerId
-            }).SingleOrDefaultAsync();
+            .Where(m => m.ProjectId == projectId && m.UserId == userId && m.Role == MemberRole.Invited)
+            .SingleOrDefaultAsync();
 
-        if(member == null)
+        if(member is null) return NoContent();
+
+        _db.ProjectMembers.Remove(member);
+
+        try
         {
-            return NotFound();
+            await _db.SaveChangesAsync();
         }
-        //no permissions check done yet, only template to ensure only own account can leave
-        //this check doesnt work yet as userID refers to user leaving, issuer will be passed through authcontext when implemented
-        if(member.UserId != userId)
+        catch(DbUpdateException e)
         {
-            return Forbid();
+            return Conflict(e.InnerException?.Message);
         }
 
-        if(member.Role == MemberRole.Owner)
-        {
-            return Conflict("Cannot leave a project you own. Transfer ownership or delete the project.");
-        }
+        return NoContent();
+    }
 
+    [HttpDelete("{projectId}/leave")]
+    [Authorize]
+    public async Task<IActionResult> LeaveProject(Guid projectId)
+    {
+        var userId = User.GetUserId();
+        
+        var member = await _db.ProjectMembers
+            .Where(m => m.ProjectId == projectId && m.UserId == userId)
+            .Select(m => new 
+                {
+                    self = m,
+                    m.ProjectId,
+                    m.UserId,
+                    m.Role,
+                    m.Project.OwnerId
+                }).SingleOrDefaultAsync();
+
+        if(member is null) return NotFound();
+
+        if(member.Role == MemberRole.Owner) return Conflict("Cannot leave a project you own. Transfer ownership or delete the project.");
+
+        if(member.Role == MemberRole.Banned) return NoContent();
+        
         var todos = await _db.Todos
-        .Where(todo => todo.ProjectId == projectId && todo.AssignedId == userId)
-        .ToListAsync();
+            .Where(todo => todo.ProjectId == projectId && todo.AssignedId == userId)
+            .ToListAsync();
 
         foreach(var todo in todos)
-        {
             todo.AssignedId = null;
-        }
 
         _db.ProjectMembers.Remove(member.self);
         
@@ -219,88 +389,176 @@ public class ProjectsController : ControllerBase
         return NoContent();
     }
 
-    [HttpPatch("{projectId}")]
-    public async Task<IActionResult> EditProject(Guid projectId, string? name, string? description, bool? isVisible)
-    {
+    //get all members of a project, same visible check as before, 
+    [HttpGet("{projectId}/members")]
+    public async Task<ActionResult<IEnumerable<MemberDto>>> GetMembers(Guid projectId, [FromQuery] MemberOverviewRequest request)
+    {   
+        var requesterId = User.GetNullableUserId();
+        
         var project = await _db.Projects
-        .Where(p => p.Id == projectId)
-        .SingleOrDefaultAsync();
+            .AsNoTracking()
+            .Where(p => p.Id == projectId)
+            .FirstOrDefaultAsync();
 
-        if(project == null)
-        {
-            return NotFound();
-        }
+        if(project is null) return NotFound();
 
-        //permissions check here
+        if(!await _auth.CanView(project, requesterId)) return NotFound();
 
-        if(name != "")
-        {
-            project.Name = name ?? project.Name;
-        }
+        var query = _db.ProjectMembers
+            .AsNoTracking()
+            .Where(m => m.ProjectId == projectId);
 
-        project.Description = description ?? project.Description;
-        project.IsVisible = isVisible ?? project.IsVisible;
+        if(request.Role is not null && Enum.IsDefined((MemberRole) request.Role)) query = query.Where(m => m.Role == request.Role);
+        else query = query.Where(m => m.Role != MemberRole.Banned && m.Role != MemberRole.Invited);
 
-        try
-        {
-            await _db.SaveChangesAsync();
-        }
-        catch(DbUpdateException e)
-        {
-            return Conflict(e.InnerException?.Message);
-        }
+        if(!string.IsNullOrWhiteSpace(request.Search)) query = query.Where(m => m.User.Username.Contains(request.Search));
 
-        var dto = new ProjectDto()
-        {
-            Id = project.Id,
-            OwnerId = project.OwnerId,
-            Name = project.Name,
-            Description = project.Description,
-            OrgId = project.OrgId
-        };
+        var page = Math.Max(request.Page, 1);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
 
-        return Ok(dto);
+        var members = await query
+        .OrderBy(m => m.Role)
+        .ThenBy(m => m.JoinTime)
+        .Skip((page - 1) * pageSize)
+        .Take(pageSize)
+        .Select(m => 
+            new MemberDto()
+            {
+                UserId = m.UserId,
+                Username = m.User.Username,
+                ProjectId = m.ProjectId,
+                ProjectName = m.Project.Name,
+                OrgId = m.User.OrgId,
+                OrgName = m.User.Org == null ? null : m.User.Org.Name,
+                Role = m.Role,
+                JoinTime = m.JoinTime
+            }).ToListAsync();
+
+        return Ok(members);
     }
 
-    [HttpPatch("{projectId}/members/{userId}")]
-    public async Task<IActionResult> ChangeRole(Guid projectId, Guid userId, MemberRole newRole)
-    {   
-        if(newRole == MemberRole.Owner)
-        {
-            return Conflict("Promotion to owner not possible.");
-        }
-
-        //permissions check here: owner: any, admin: contributor and below only, other: immediately reject
+    [HttpGet("{projectId}/members/me")]
+    public async Task<IActionResult> GetMember(Guid projectId)
+    {
+        var requesterId = User.GetNullableUserId();
+        if (requesterId == null) return NoContent();
 
         var member = await _db.ProjectMembers
-        .Where(m => m.ProjectId == projectId && m.UserId == userId)
-        .Select(m => new 
-            {
-                self = m,
-                m.UserId,
-                m.User.Username,
-                m.ProjectId,
-                ProjectName = m.Project.Name,
-                m.Role
-            })
-        .SingleOrDefaultAsync();
+            .Where(m => m.ProjectId == projectId && m.UserId == requesterId)
+            .Select(m => 
+                new MemberDto()
+                {
+                    UserId = m.UserId,
+                    Username = m.User.Username,
+                    ProjectId = m.ProjectId,
+                    ProjectName = m.Project.Name,
+                    Role = m.Role,
+                    JoinTime = m.JoinTime
+                }).SingleOrDefaultAsync();
 
-        if(member == null)
-        {
-            return NotFound("No such membership");
-        }
+        if(member is null) return NoContent();
+    
+        return Ok(member);
+    }
 
-        if(member.Role == MemberRole.Owner)
-        {
-            return Conflict("Cannot demote owner, ownership must be transferred");
-        }
+    [HttpGet("{projectId}/todos")]
+    public  async Task<IActionResult> GetProjectTodos(Guid projectId, [FromQuery] GetManyTodosRequest request)
+    {   
+        var requesterId = User.GetNullableUserId();
+        var parent = await _db.Projects
+            .AsNoTracking()
+            .Where(p => p.Id == projectId)
+            .FirstOrDefaultAsync();
 
-        if(member.Role == newRole)
-        {
-            return NoContent();
-        }
+        if(parent is null) return NotFound();
 
-        member.self.Role = newRole;
+        if(!await _auth.CanView(parent, requesterId)) return NotFound();
+
+        var query = _db.Todos
+            .AsNoTracking()
+            .Where(t => t.ProjectId == projectId);
+
+        if(!string.IsNullOrWhiteSpace(request.Search)) query = query.Where(t => t.Title.Contains(request.Search) || (!string.IsNullOrWhiteSpace(t.Description) && t.Description.Contains(request.Search)));
+        
+        if(request.Status is not null && Enum.IsDefined((TodoStatus) request.Status)) query = query.Where(t => t.Status == request.Status);
+        
+        if(request.Assigned is not null) query = query.Where(t => t.AssignedId == request.Assigned);
+        
+        query = query
+            .Include(t => t.Assigned)
+            .Include(t => t.CreatedBy);
+
+        var page = Math.Max(request.Page, 1);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+
+        var todos = await query
+            .OrderBy(t => t.IssueNo)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(t => 
+                new TodoDto()
+                {
+                    Id = t.Id,
+                    ProjectId = t.ProjectId,
+                    ProjectName = t.Project.Name,
+                    Title = t.Title,
+                    Description = t.Description,
+                    Status = t.Status,
+                    CreatedAt = t.CreatedAt,
+                    Assigned = t.AssignedId,
+                    AssignedName = t.Assigned == null ? null : t.Assigned.Username,
+                    IssueNo = t.IssueNo,
+                    CreatedBy = t.CreatedById,
+                    CreatedByName = t.CreatedBy == null ? null : t.CreatedBy.Username
+                }).ToListAsync();
+
+        return Ok(todos);
+    }
+
+    [HttpPatch("{projectId}/ban/{userId}")]
+    [Authorize]
+    public async Task<IActionResult> BanMember(Guid projectId, Guid userId)
+    {
+        var issuerId = User.GetUserId();
+
+        var project = await _db.Projects
+            .AsNoTracking()
+            .Where(p => p.Id == projectId)
+            .SingleOrDefaultAsync();
+        
+        if(project is null) return NotFound();
+
+        var admin = await _auth.AdminPermissions(project, issuerId);
+
+        if(!admin) return Forbid();
+        
+        var member = await _db.ProjectMembers
+            .Where(m => m.ProjectId == projectId && m.UserId == userId)
+            .Select(m => new 
+                {
+                    self = m,
+                    m.UserId,
+                    m.User.Username,
+                    m.ProjectId,
+                    ProjectName = m.Project.Name,
+                    m.Role
+                })
+            .SingleOrDefaultAsync();
+
+        if(member is null) return NotFound("No such membership");
+
+        if(member.Role == MemberRole.Owner) return Conflict("Cannot ban owner, ownership must be transferred");
+
+        if(member.Role == MemberRole.Admin && !_auth.OwnsProject(project, issuerId)) return Forbid();
+
+        member.self.Role = MemberRole.Banned;
+
+        var todos = await _db.Todos
+            .Where(todo => todo.ProjectId == projectId && todo.AssignedId == userId)
+            .ToListAsync();
+
+        foreach(var todo in todos)
+            todo.AssignedId = null;
 
         try
         {
@@ -317,40 +575,115 @@ public class ProjectsController : ControllerBase
             Username = member.Username,
             ProjectId = member.ProjectId,
             ProjectName = member.ProjectName,
-            Role = newRole
+            JoinTime = DateTime.UtcNow,
+            Role = MemberRole.Banned
+        };
+
+        return Ok(dto);
+    }
+
+    [HttpPatch("{projectId}/members/")]
+    [Authorize]
+    public async Task<IActionResult> ChangeRole(Guid projectId, MemberRoleChangeRequest request)
+    {   
+        if(!Enum.IsDefined(request.Role)) return BadRequest("Invalid Role");
+
+        if(request.Role == MemberRole.Owner) return Conflict("Transferring ownership must be done through the dedicated endpoint");
+        
+        if(request.Role == MemberRole.Banned) return Conflict("Bans must be made through the ban endpoint.");
+
+        var requesterId = User.GetUserId();
+
+        var project = await _db.Projects
+            .AsNoTracking()
+            .Where(p => p.Id == projectId)
+            .SingleOrDefaultAsync();
+        
+        if(project is null) return NotFound();
+
+        var admin = await _auth.AdminPermissions(project, requesterId);
+
+        if(!admin) return Forbid();
+
+        var member = await _db.ProjectMembers
+            .Where(m => m.ProjectId == projectId && m.UserId == request.User)
+            .Select(m => new 
+                {
+                    self = m,
+                    m.UserId,
+                    m.User.Username,
+                    m.ProjectId,
+                    ProjectName = m.Project.Name,
+                    m.Role,
+                    m.JoinTime
+                })
+            .SingleOrDefaultAsync();
+
+        if(member is null) return NotFound("No such membership");
+
+        if(member.Role == MemberRole.Owner) return Conflict("Cannot demote owner, ownership must be transferred");
+
+        if(member.Role == request.Role) return NoContent();
+
+        if((member.Role == MemberRole.Admin || request.Role == MemberRole.Admin) && !_auth.OwnsProject(project, requesterId)) return Forbid();
+
+        if(request.Role == MemberRole.Viewer)
+        {
+            var todos = await _db.Todos
+                .Where(todo => todo.ProjectId == projectId && todo.AssignedId == request.User)
+                .ToListAsync();
+
+            foreach(var todo in todos)
+                todo.AssignedId = null;
+        }
+
+        member.self.Role = request.Role;
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch(DbUpdateException e)
+        {
+            return Conflict(e.InnerException?.Message);
+        }
+
+        var dto = new MemberDto()
+        {
+            UserId = member.UserId,
+            Username = member.Username,
+            ProjectId = member.ProjectId,
+            ProjectName = member.ProjectName,
+            JoinTime = member.JoinTime,
+            Role = request.Role
         };
 
         return Ok(dto);
     }
 
     [HttpPatch("{projectId}/org/")]
+    [Authorize]
     public async Task<IActionResult> ChangeToOrg(Guid projectId)
     {
-        //Only owner can do this
+        var userId = User.GetUserId();
 
         var project = await _db.Projects
-            .Where(p => p.Id == projectId)
+            .Where(p => p.Id == projectId && p.OwnerId == userId)
             .Include(p => p.Owner)
             .ThenInclude(o => o.Org)
             .SingleOrDefaultAsync();
 
-        if(project == null)
-        {
-            return NotFound();
-        }
+        if(project is null) return NotFound();
 
-        if(project.OrgId != null)
-        {
-            return NoContent();
-        }
-        
-        if(project.Owner.OrgId == null)
-        {
-            return Conflict("Project owner must belong to an organization to move project to their organization.");
-        }
-        
+        if(!_auth.OwnsProject(project, userId)) return Forbid();
 
+        if(project.OrgId is not null) return NoContent();
+        
+        if(project.Owner.OrgId is null || project.Owner.Org is null) return Conflict("Project owner must belong to an organization to move project to their organization.");
+        
+        
         project.OrgId = project.Owner.OrgId;
+        project.Org = project.Owner.Org;
 
         try
         {
@@ -365,33 +698,34 @@ public class ProjectsController : ControllerBase
         {
             Id = project.Id,
             OwnerId = project.OwnerId,
+            OwnerName = project.Owner.Username,
             Name = project.Name,
             Description = project.Description,
             OrgId = project.OrgId,
-            OrgName = project.Org?.Name
+            OrgName = project.Org.Name,
+            CreatedAt = project.CreatedAt,
+            IsVisible = project.IsVisible,
+            JoinPolicy = project.JoinPolicy
         };
 
         return Ok(dto);
     }
 
     [HttpPatch("{projectId}/org/remove")]
+    [Authorize]
     public async Task<IActionResult> RemoveFromOrg(Guid projectId)
     {
-        //Only owner can do this
+        var userId = User.GetUserId();
 
         var project = await _db.Projects
-            .Where(p => p.Id == projectId)
+            .Where(p => p.Id == projectId && p.OwnerId == userId)
             .SingleOrDefaultAsync();
 
-        if(project == null)
-        {
-            return NotFound();
-        }
+        if(project is null) return NotFound();
 
-        if(project.OrgId == null)
-        {
-            return NoContent();
-        }
+        if(project.OrgId is null) return NoContent();
+
+        if (!_auth.OwnsProject(project, userId)) return Forbid();
 
         project.OrgId = null;
 
@@ -408,60 +742,52 @@ public class ProjectsController : ControllerBase
         {
             Id = project.Id,
             OwnerId = project.OwnerId,
+            OwnerName = "I forgor :skull:",
             Name = project.Name,
             Description = project.Description,
-            OrgId = null,
-            OrgName = null
+            CreatedAt = project.CreatedAt,
+            IsVisible = project.IsVisible,
+            JoinPolicy = project.JoinPolicy
         };
-
+        
         return Ok(dto);
     }
 
-    [HttpPatch("{projectId}/transfer")]
-    public async Task<IActionResult> TransferOwnership(Guid projectId, Guid newOwnerId)
+    [HttpPatch("{projectId}/transfer/{userId}")]
+    [Authorize]
+    public async Task<IActionResult> TransferOwnership(Guid projectId, Guid userId)
     {
-        //Only owner can do this
+        var requesterId = User.GetUserId();
 
         var project = await _db.Projects
-        .Where(p => p.Id == projectId)
-        .Include(p => p.Org)
-        .SingleOrDefaultAsync();
+            .Where(p => p.Id == projectId && p.OwnerId == requesterId)
+            .Include(p => p.Org)
+            .SingleOrDefaultAsync();
 
-        if(project == null)
-        {
-            return NotFound();
-        }
+        if(project is null) return NotFound();
 
-        if(project.OwnerId == newOwnerId)
-        {
-            return NoContent();
-        }
+        if (!_auth.OwnsProject(project, requesterId)) return Forbid();
+
+        if(project.OwnerId == userId) return NoContent();
 
         var membership = await _db.ProjectMembers
-            .Where(m => m.ProjectId == projectId && m.UserId == newOwnerId)
+            .Where(m => m.ProjectId == projectId && m.UserId == userId)
             .Include(m => m.User)
             .SingleOrDefaultAsync();
 
-        if(membership == null)
-        {
-            return Conflict("Cannot transfer ownership to a user that is not a member of the project.");
-        }
+        if(membership is null) return Conflict("Cannot transfer ownership to a user that is not a member of the project.");
+        
+        if(membership.Role == MemberRole.Banned) return Conflict("Cannot transfer ownership to a banned user");
 
-        if(project.OrgId != null && project.OrgId != membership.User.OrgId)
-        {
-            return Conflict("Projects associated with an organization can only transfer ownership to users within the same organization.");
-        }
+        if(project.OrgId is not null && project.OrgId != membership.User.OrgId) return Conflict("Projects associated with an organization can only transfer ownership to users within the same organization.");
 
         var oldOwnerMembership = await _db.ProjectMembers
             .Where(m => m.ProjectId == projectId && m.UserId == project.OwnerId)
             .SingleOrDefaultAsync();
 
-        if(oldOwnerMembership == null)
-        {
-            return Conflict("Current owner not recognized as member of the project. Critical data integrity issue, this should never happen.");
-        }
-
-        project.OwnerId = newOwnerId;
+        if(oldOwnerMembership is null) return Conflict("Current owner not recognized as member of the project. Critical data integrity issue, this should never happen.");
+        
+        project.OwnerId = userId;
         oldOwnerMembership.Role = MemberRole.Admin;
         membership.Role = MemberRole.Owner;
 
@@ -478,12 +804,17 @@ public class ProjectsController : ControllerBase
         {
             Id = project.Id,
             OwnerId = project.OwnerId,
+            OwnerName = membership.User.Username,
             Name = project.Name,
             Description = project.Description,
             OrgId = project.OrgId,
-            OrgName = project.Org?.Name
+            OrgName = project.Org?.Name,
+            CreatedAt = project.CreatedAt,
+            IsVisible = project.IsVisible,
+            JoinPolicy = project.JoinPolicy
         };
 
         return Ok(dto);
     }
+
 }

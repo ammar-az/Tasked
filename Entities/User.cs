@@ -12,8 +12,7 @@ public class User
     public Organization? Org {get; set;}
     public string Email {get; set;} = "";
     public string Password {get; set;} = "";
-    public string Salt {get; set;} = "";
-
     public ICollection<Project> OwnedProjects {get;} = [];
     public ICollection<Todo> AssignedTodos {get;} = [];
+    public ICollection<Todo> CreatedTodos {get;} = [];
 }

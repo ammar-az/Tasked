@@ -484,3 +484,4 @@ $RECYCLE.BIN/
 # Other
 
 Tasked.csproj.lscache
+*.txt
