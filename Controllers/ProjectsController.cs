@@ -428,6 +428,8 @@ public class ProjectsController : ControllerBase
                 Username = m.User.Username,
                 ProjectId = m.ProjectId,
                 ProjectName = m.Project.Name,
+                OrgId = m.User.OrgId,
+                OrgName = m.User.Org == null ? null : m.User.Org.Name,
                 Role = m.Role,
                 JoinTime = m.JoinTime
             }).ToListAsync();
@@ -740,16 +742,14 @@ public class ProjectsController : ControllerBase
         {
             Id = project.Id,
             OwnerId = project.OwnerId,
-            OwnerName = project.Owner.Username,
+            OwnerName = "I forgor :skull:",
             Name = project.Name,
             Description = project.Description,
-            OrgId = project.OrgId,
-            OrgName = project.Org?.Name,
             CreatedAt = project.CreatedAt,
             IsVisible = project.IsVisible,
             JoinPolicy = project.JoinPolicy
         };
-
+        
         return Ok(dto);
     }
 
