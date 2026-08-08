@@ -18,6 +18,7 @@ public record MemberOverviewDto
 {
     required public Guid ProjectId {get; init;}
     required public string ProjectName {get; init;}
+    required public string ProjectSlug {get; init;}
     public string? ProjectDesc {get; init;}
     required public MemberRole Role {get; init;}
     public Guid? OrgId {get; init;}

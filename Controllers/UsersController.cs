@@ -165,6 +165,7 @@ public class UsersController : ControllerBase
             {
                 ProjectId = m.ProjectId,
                 ProjectName = m.Project.Name,
+                ProjectSlug = m.Project.Slug,
                 ProjectDesc = m.Project.Description,
                 Role = m.Role,
                 OrgId = m.Project.OrgId,
