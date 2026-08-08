@@ -21,27 +21,6 @@ public class UsersController : ControllerBase
         _db = db;
     }
 
-    // [HttpGet("{userId}")]
-    // public async Task<ActionResult<UserDto>> GetUserById(Guid userId)
-    // {
-    //     var user = await _db.Users
-    //         .AsNoTracking()
-    //         .Where(u => u.Id == userId)
-    //         .Select(u => 
-    //             new UserDto()
-    //             {
-    //                 Id = u.Id,
-    //                 Username = u.Username,
-    //                 OrgId = u.OrgId,
-    //                 OrgName = u.Org == null ? null : u.Org.Name,
-    //                 Email = u.Email
-    //             }).SingleOrDefaultAsync();
-
-    //     if(user is null) return NotFound();
-
-    //     return Ok(user);
-    // }
-
     [HttpGet("{username}")]
     public async Task<ActionResult<UserDto>> GetUserByName(string username)
     {
@@ -55,7 +34,6 @@ public class UsersController : ControllerBase
                     Username = u.Username,
                     OrgId = u.OrgId,
                     OrgName = u.Org == null ? null : u.Org.Name,
-                    Email = u.Email
                 }).SingleOrDefaultAsync();
 
         if(user is null) return NotFound();
@@ -102,16 +80,12 @@ public class UsersController : ControllerBase
     public async Task<ActionResult<UserDto>> UpdateUser(UserUpdateRequest request)
     {
         var username = request.Username;
-        var email = request.Email;
 
-        if(username is null && email is null) return BadRequest("No fields to update");
+        if(username is null) return BadRequest("No fields to update");
     
         var userId = User.GetUserId();
         
         if(username == "") return BadRequest("Invalid username");
-
-        //this can actually check for valid email addresses instead eventually
-        if(email == "") return BadRequest("Invalid email");
 
         var user = await _db.Users
             .Where(u => u.Id == userId)
@@ -120,7 +94,6 @@ public class UsersController : ControllerBase
         if(user is null)return NotFound();
 
         user.Username = username ?? user.Username;
-        user.Email = email ?? user.Email;
         _db.Users.Update(user);
 
         try
@@ -138,7 +111,6 @@ public class UsersController : ControllerBase
             Username = user.Username,
             OrgId = user.OrgId,
             OrgName = user.Org?.Name,
-            Email = user.Email
         };
 
         return Ok(dto);

@@ -6,6 +6,7 @@ using Tasked.DTOs;
 using Tasked.Entities;
 using Tasked.Enums;
 using Tasked.Services;
+using System.Text.RegularExpressions;
 
 namespace Tasked.Controllers;
 
@@ -21,6 +22,34 @@ public class ProjectsController : ControllerBase
         _db = db;
         _auth = projectService;
     }
+
+
+
+private async Task<string> CreateUniqueSlug(string name)
+{
+    var baseSlug = name
+        .Trim()
+        .ToLowerInvariant();
+
+    baseSlug = Regex.Replace(baseSlug, @"[^a-z0-9]+", "-");
+    baseSlug = baseSlug.Trim('-');
+
+    if (string.IsNullOrWhiteSpace(baseSlug))
+    {
+        baseSlug = "project";
+    }
+
+    var slug = baseSlug;
+    var number = 2;
+
+    while (await _db.Projects.AnyAsync(p => p.Slug == slug))
+    {
+        slug = $"{baseSlug}-{number}";
+        number++;
+    }
+
+    return slug;
+}
 
     [HttpPost]
     [Authorize]
@@ -41,6 +70,7 @@ public class ProjectsController : ControllerBase
             OrgId = request.Org ? user.OrgId : null,
             OwnerId = userId,
             Name = request.Name,
+            Slug = await CreateUniqueSlug(request.Name),
             Description = request.Description,
             IsVisible = request.IsVisible,
             JoinPolicy = request.JoinPolicy,
@@ -73,6 +103,7 @@ public class ProjectsController : ControllerBase
             OwnerId = project.OwnerId,
             OwnerName = user.Username,
             Name = project.Name,
+            Slug = await CreateUniqueSlug(request.Name),
             Description = project.Description,
             OrgId = project.OrgId,
             OrgName = user.Org?.Name,
@@ -88,32 +119,65 @@ public class ProjectsController : ControllerBase
         );
     }
 
-    [HttpGet("{projectId}")]
+    [HttpGet("{projectSlug}")]
+    public async Task<ActionResult<ProjectDto>> GetProject(string projectSlug)
+    {
+        var requesterId = User.GetNullableUserId();
+
+        var project = await _db.Projects
+            .AsNoTracking()
+            .Where(p => p.Slug == projectSlug)
+            .Include(p => p.Owner)
+            .SingleOrDefaultAsync();
+
+        if(project is null) return NotFound();
+
+        if(!await _auth.CanView(project, requesterId)) return NotFound();
+
+        var dto = new ProjectDto()
+        {
+            Id = project.Id,
+            OwnerId = project.OwnerId,
+            OwnerName = project.Owner.Username,
+            Name = project.Name,
+            Slug = project.Slug,
+            Description = project.Description,
+            OrgId = project.OrgId,
+            IsVisible = project.IsVisible,
+            JoinPolicy = project.JoinPolicy,
+            CreatedAt = project.CreatedAt
+        };
+
+        return Ok(dto);
+    }
+
+    [HttpGet("id/{projectId}")]
     public async Task<ActionResult<ProjectDto>> GetProject(Guid projectId)
     {
         var requesterId = User.GetNullableUserId();
 
-        var p = await _db.Projects
+        var project = await _db.Projects
             .AsNoTracking()
             .Where(p => p.Id == projectId)
             .Include(p => p.Owner)
             .SingleOrDefaultAsync();
 
-        if(p is null) return NotFound();
+        if(project is null) return NotFound();
 
-        if(!await _auth.CanView(p, requesterId)) return NotFound();
+        if(!await _auth.CanView(project, requesterId)) return NotFound();
 
         var dto = new ProjectDto()
         {
-            Id = p.Id,
-            OwnerId = p.OwnerId,
-            OwnerName = p.Owner.Username,
-            Name = p.Name,
-            Description = p.Description,
-            OrgId = p.OrgId,
-            IsVisible = p.IsVisible,
-            JoinPolicy = p.JoinPolicy,
-            CreatedAt = p.CreatedAt
+            Id = project.Id,
+            OwnerId = project.OwnerId,
+            OwnerName = project.Owner.Username,
+            Name = project.Name,
+            Slug = project.Slug,
+            Description = project.Description,
+            OrgId = project.OrgId,
+            IsVisible = project.IsVisible,
+            JoinPolicy = project.JoinPolicy,
+            CreatedAt = project.CreatedAt
         };
 
         return Ok(dto);
@@ -157,6 +221,7 @@ public class ProjectsController : ControllerBase
             OwnerId = project.OwnerId,
             OwnerName = project.Owner.Username,
             Name = project.Name,
+            Slug = project.Slug,
             Description = project.Description,
             OrgId = project.OrgId,
             OrgName = project.Org?.Name,
@@ -700,6 +765,7 @@ public class ProjectsController : ControllerBase
             OwnerId = project.OwnerId,
             OwnerName = project.Owner.Username,
             Name = project.Name,
+            Slug = project.Slug,
             Description = project.Description,
             OrgId = project.OrgId,
             OrgName = project.Org.Name,
@@ -744,6 +810,7 @@ public class ProjectsController : ControllerBase
             OwnerId = project.OwnerId,
             OwnerName = "I forgor :skull:",
             Name = project.Name,
+            Slug = project.Slug,
             Description = project.Description,
             CreatedAt = project.CreatedAt,
             IsVisible = project.IsVisible,
@@ -806,6 +873,7 @@ public class ProjectsController : ControllerBase
             OwnerId = project.OwnerId,
             OwnerName = membership.User.Username,
             Name = project.Name,
+            Slug = project.Slug,
             Description = project.Description,
             OrgId = project.OrgId,
             OrgName = project.Org?.Name,

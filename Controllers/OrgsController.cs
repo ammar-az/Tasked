@@ -136,6 +136,7 @@ public class OrgsController : ControllerBase
                 OwnerId = p.OwnerId,
                 OwnerName = p.Owner.Username,
                 Name = p.Name,
+                Slug = p.Slug,
                 Description = p.Description,
                 OrgId = p.OrgId,
                 OrgName = p.Org == null ? null : p.Org.Name,
@@ -158,7 +159,6 @@ public class OrgsController : ControllerBase
             {
                 Id = u.Id,
                 Username = u.Username,
-                Email = u.Email
             }).ToListAsync();
 
         return Ok(users);
