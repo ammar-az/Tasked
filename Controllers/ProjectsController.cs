@@ -502,14 +502,14 @@ private async Task<string> CreateUniqueSlug(string name)
         return Ok(members);
     }
 
-    [HttpGet("{projectId}/members/me")]
-    public async Task<IActionResult> GetMember(Guid projectId)
+    [HttpGet("{projectSlug}/members/me")]
+    public async Task<IActionResult> GetMember(string projectSlug)
     {
         var requesterId = User.GetNullableUserId();
         if (requesterId == null) return NoContent();
 
         var member = await _db.ProjectMembers
-            .Where(m => m.ProjectId == projectId && m.UserId == requesterId)
+            .Where(m => m.Project.Slug == projectSlug && m.UserId == requesterId)
             .Select(m => 
                 new MemberDto()
                 {
@@ -526,13 +526,13 @@ private async Task<string> CreateUniqueSlug(string name)
         return Ok(member);
     }
 
-    [HttpGet("{projectId}/todos")]
-    public  async Task<IActionResult> GetProjectTodos(Guid projectId, [FromQuery] GetManyTodosRequest request)
+    [HttpGet("{projectSlug}/todos")]
+    public  async Task<IActionResult> GetProjectTodos(string projectSlug, [FromQuery] GetManyTodosRequest request)
     {   
         var requesterId = User.GetNullableUserId();
         var parent = await _db.Projects
             .AsNoTracking()
-            .Where(p => p.Id == projectId)
+            .Where(p => p.Slug == projectSlug)
             .FirstOrDefaultAsync();
 
         if(parent is null) return NotFound();
@@ -541,7 +541,7 @@ private async Task<string> CreateUniqueSlug(string name)
 
         var query = _db.Todos
             .AsNoTracking()
-            .Where(t => t.ProjectId == projectId);
+            .Where(t => t.ProjectId == parent.Id);
 
         if(!string.IsNullOrWhiteSpace(request.Search)) query = query.Where(t => t.Title.Contains(request.Search) || (!string.IsNullOrWhiteSpace(t.Description) && t.Description.Contains(request.Search)));
         

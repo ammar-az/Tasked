@@ -22,9 +22,9 @@ public class TodosController : ControllerBase
         _auth = projectService;
     }
 
-    [HttpPost("project/{projectId}")]
+    [HttpPost("project/{projectSlug}")]
     [Authorize]
-    public async Task<IActionResult> CreateTodo(Guid projectId, TodoRequest request)
+    public async Task<IActionResult> CreateTodo(string projectSlug, TodoRequest request)
     {
         if(!Enum.IsDefined(request.Status)) return BadRequest("Invalid status");
         await using var transaction = await _db.Database.BeginTransactionAsync();
@@ -32,7 +32,7 @@ public class TodosController : ControllerBase
         var requesterId = User.GetUserId();
 
         var membership = await _db.ProjectMembers
-            .Where(m => m.UserId == requesterId && m.ProjectId == projectId)
+            .Where(m => m.UserId == requesterId && m.Project.Slug == projectSlug)
             .Include(m => m.User)
             .Include(m=> m.Project)
             .SingleOrDefaultAsync();
@@ -41,7 +41,7 @@ public class TodosController : ControllerBase
 
         var todo = new Todo
         {
-            ProjectId = projectId,
+            ProjectId = membership.Project.Id,
             Title = request.Title,
             Description = request.Description,
             Status = request.Status,
@@ -159,14 +159,14 @@ public class TodosController : ControllerBase
         return Ok(todo);
     }
 
-    [HttpGet("project/{projectId}/{issueNo}")]
-    public async Task<IActionResult> GetTodoByNo(Guid projectId, int issueNo)
+    [HttpGet("project/{projectSlug}/{issueNo}")]
+    public async Task<IActionResult> GetTodoByNo(string projectSlug, int issueNo)
     {
         var requesterId = User.GetNullableUserId();
         
         var todo = await _db.Todos
             .AsNoTracking()
-            .Where(t => t.ProjectId == projectId && t.IssueNo == issueNo)
+            .Where(t => t.Project.Slug == projectSlug && t.IssueNo == issueNo)
             .Select(t => 
                 new TodoDto()
                 {
