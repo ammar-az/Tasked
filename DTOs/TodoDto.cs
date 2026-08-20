@@ -42,7 +42,7 @@ public record GetManyTodosRequest
 
     public Guid? Assigned {get; init;}
     
-    public string SortBy {get; init;} = "IssueNo";
+    required public TodoSort SortBy {get; init;} = TodoSort.IssueNo;
     public bool Descending {get; init;}
 
     public int Page {get; init;} = 1;

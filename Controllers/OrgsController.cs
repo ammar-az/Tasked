@@ -33,9 +33,9 @@ public class OrgsController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException )
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("Could not create this organization");
         }
 
         var dto = new OrgDto()
@@ -115,9 +115,9 @@ public class OrgsController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("Could not delete this organization");
         }
 
         return NoContent();
@@ -199,9 +199,9 @@ public class OrgsController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("Could not join this organization");
         }
 
         return Ok();
@@ -233,9 +233,9 @@ public class OrgsController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("Could not leave this organization");
         }
 
         return NoContent();

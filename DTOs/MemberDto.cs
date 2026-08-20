@@ -29,8 +29,8 @@ public record MemberOverviewRequest
 {
     public string? Search {get; init;}
     public MemberRole? Role {get; init;}
-    public bool Owner {get; init;}
-    public string SortBy {get; init;} = "Name";
+    public bool RoleMin {get; init;}
+    public MemberSort SortBy {get; init;} = MemberSort.Name;
     public bool Descending {get; init;}
 
     public int Page {get; init;} = 1;

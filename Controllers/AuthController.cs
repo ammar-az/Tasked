@@ -48,9 +48,9 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("Could not create new account.");
         }
 
         var token = _tokenService.CreateAccessToken(user);
@@ -98,9 +98,9 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occurred while verifying your session. Please try logging in again.");
         }
 
         return await NewSession(existingToken.User);
@@ -167,9 +167,9 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occurred while verifying your session. Please try logging in again.");
         }
 
         var dto = new UserDto

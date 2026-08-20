@@ -60,10 +60,10 @@ public class TodosController : ControllerBase
             await _db.SaveChangesAsync();
             await transaction.CommitAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
             await transaction.RollbackAsync();
-            return Conflict(e.InnerException?.Message);
+            return Conflict("Task could not be created.");
         }
 
         var dto = new TodoDto()
@@ -112,9 +112,9 @@ public class TodosController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("This task could not be deleted");
         }
         
         return NoContent();
@@ -191,9 +191,7 @@ public class TodosController : ControllerBase
             .Where(p => p.Id == todo.ProjectId)
             .FirstOrDefaultAsync();
 
-        if(parent is null) return StatusCode(500);
-
-        if(!await _auth.CanView(parent, requesterId)) return NotFound();
+        if(parent is null || !await _auth.CanView(parent, requesterId)) return NotFound();
 
         return Ok(todo);
     }
@@ -234,9 +232,9 @@ public class TodosController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occurred while trying to assign a user to this task.");
         }
 
         var dto = new TodoDto()
@@ -297,9 +295,9 @@ public class TodosController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occured while updating the task's status");
         }
 
         var dto = new TodoDto()
@@ -367,9 +365,9 @@ public class TodosController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occured while updating the task");
         }
         var dto = new TodoDto()
         {

@@ -128,6 +128,7 @@ private async Task<string> CreateUniqueSlug(string name)
             .AsNoTracking()
             .Where(p => p.Slug == projectSlug)
             .Include(p => p.Owner)
+            .Include(p => p.Org)
             .SingleOrDefaultAsync();
 
         if(project is null) return NotFound();
@@ -143,6 +144,7 @@ private async Task<string> CreateUniqueSlug(string name)
             Slug = project.Slug,
             Description = project.Description,
             OrgId = project.OrgId,
+            OrgName = project.Org?.Name,
             IsVisible = project.IsVisible,
             JoinPolicy = project.JoinPolicy,
             CreatedAt = project.CreatedAt
@@ -210,9 +212,9 @@ private async Task<string> CreateUniqueSlug(string name)
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occurred and the project could not be edited.");
         }
 
         var dto = new ProjectDto()
@@ -276,9 +278,9 @@ private async Task<string> CreateUniqueSlug(string name)
 
         if(preexisting is not null)
         {
-            if(preexisting.Role == MemberRole.Banned) return Forbid();
+            if(preexisting.Role == MemberRole.Banned) return Forbid("You cannot join a project you have been banned from.");
             
-            else if(preexisting.Role != MemberRole.Invited) return Conflict();
+            else if(preexisting.Role != MemberRole.Invited) return Conflict("You are already a member of this project");
         }
 
         var membership = new ProjectMember
@@ -303,9 +305,9 @@ private async Task<string> CreateUniqueSlug(string name)
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("There was an error while attempting to join the project.");
         }
 
         var dto = new MemberDto()
@@ -347,7 +349,7 @@ private async Task<string> CreateUniqueSlug(string name)
             .Where(m => m.ProjectId == projectId && m.UserId == userId)
             .AnyAsync();
 
-        if(preexisting) return Conflict();
+        if(preexisting) return Conflict("You cannot invite a user who is already a member of the project or has already been invited");
 
         var membership = new ProjectMember
         {
@@ -363,9 +365,9 @@ private async Task<string> CreateUniqueSlug(string name)
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("There was an error while inviting the user to the project.");
         }
 
         var dto = new MemberDto()
@@ -402,9 +404,9 @@ private async Task<string> CreateUniqueSlug(string name)
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("There was an error while rejecting the invite.");
         }
 
         return NoContent();
@@ -455,14 +457,14 @@ private async Task<string> CreateUniqueSlug(string name)
     }
 
     //get all members of a project, same visible check as before, 
-    [HttpGet("{projectId}/members")]
-    public async Task<ActionResult<IEnumerable<MemberDto>>> GetMembers(Guid projectId, [FromQuery] MemberOverviewRequest request)
+    [HttpGet("{projectSlug}/members")]
+    public async Task<ActionResult<IEnumerable<MemberDto>>> GetMembers(string projectSlug, [FromQuery] MemberOverviewRequest request)
     {   
         var requesterId = User.GetNullableUserId();
         
         var project = await _db.Projects
             .AsNoTracking()
-            .Where(p => p.Id == projectId)
+            .Where(p => p.Slug == projectSlug)
             .FirstOrDefaultAsync();
 
         if(project is null) return NotFound();
@@ -471,19 +473,34 @@ private async Task<string> CreateUniqueSlug(string name)
 
         var query = _db.ProjectMembers
             .AsNoTracking()
-            .Where(m => m.ProjectId == projectId);
+            .Where(m => m.ProjectId == project.Id);
 
         if(request.Role is not null && Enum.IsDefined((MemberRole) request.Role)) query = query.Where(m => m.Role == request.Role);
         else query = query.Where(m => m.Role != MemberRole.Banned && m.Role != MemberRole.Invited);
 
         if(!string.IsNullOrWhiteSpace(request.Search)) query = query.Where(m => m.User.Username.Contains(request.Search));
 
+        query = request.SortBy switch
+        {
+            MemberSort.Name => request.Descending
+                ? query.OrderByDescending(m => m.User.Username).ThenByDescending(m => m.JoinTime)
+                : query.OrderBy(m => m.User.Username).ThenBy(m => m.JoinTime),
+
+            MemberSort.Role => request.Descending
+                ? query.OrderByDescending(m => m.Role).ThenByDescending(m => m.User.Username)
+                : query.OrderBy(m => m.Role).ThenBy(m => m.User.Username),
+
+            MemberSort.Time => request.Descending
+                ? query.OrderByDescending(m => m.JoinTime).ThenByDescending(m => m.User.Username)
+                : query.OrderBy(m => m.JoinTime).ThenBy(m => m.User.Username),
+
+             _ => query.OrderBy(m => m.User.Username).ThenBy(m => m.JoinTime)
+        };
+
         var page = Math.Max(request.Page, 1);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
 
         var members = await query
-        .OrderBy(m => m.Role)
-        .ThenBy(m => m.JoinTime)
         .Skip((page - 1) * pageSize)
         .Take(pageSize)
         .Select(m => 
@@ -553,11 +570,35 @@ private async Task<string> CreateUniqueSlug(string name)
             .Include(t => t.Assigned)
             .Include(t => t.CreatedBy);
 
+        query = request.SortBy switch
+        {
+            TodoSort.IssueNo => request.Descending 
+                ? query.OrderByDescending(t => t.IssueNo).ThenByDescending(t => t.Title)
+                : query.OrderBy(t => t.IssueNo).ThenBy(t => t.Title),
+
+            TodoSort.Title => request.Descending 
+                ? query.OrderByDescending(t => t.Title).ThenByDescending(t => t.IssueNo)
+                : query.OrderBy(t => t.Title).ThenBy(t => t.IssueNo),
+
+            TodoSort.Status => request.Descending 
+                ? query.OrderByDescending(t => t.Status).ThenByDescending(t => t.IssueNo)
+                : query.OrderBy(t => t.Status).ThenBy(t => t.IssueNo),
+
+            // TodoSort.Assigned => request.Descending
+            // ? query.OrderByDescending(t => t.Assigned).ThenByDescending(t => t.IssueNo)
+            // : query.OrderBy(t => t.Assigned).ThenBy(t => t.IssueNo),
+
+            // TodoSort.CreatedBy => request.Descending
+            // ? query.OrderByDescending(t => t.CreatedBy).ThenByDescending(t => t.IssueNo)
+            // : query.OrderBy(t => t.CreatedBy).ThenBy(t => t.IssueNo),
+
+            _ => query.OrderBy(t => t.IssueNo).ThenBy(t => t.Title)
+        };
+
         var page = Math.Max(request.Page, 1);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
 
         var todos = await query
-            .OrderBy(t => t.IssueNo)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(t => 
@@ -612,7 +653,7 @@ private async Task<string> CreateUniqueSlug(string name)
 
         if(member is null) return NotFound("No such membership");
 
-        if(member.Role == MemberRole.Owner) return Conflict("Cannot ban owner, ownership must be transferred");
+        if(member.Role == MemberRole.Owner) return Conflict("Cannot ban owner");
 
         if(member.Role == MemberRole.Admin && !_auth.OwnsProject(project, issuerId)) return Forbid();
 
@@ -629,9 +670,9 @@ private async Task<string> CreateUniqueSlug(string name)
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occurred while managing the project member");
         }
 
         var dto = new MemberDto()
@@ -708,9 +749,9 @@ private async Task<string> CreateUniqueSlug(string name)
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occurred while managing the project member");
         }
 
         var dto = new MemberDto()
@@ -754,9 +795,9 @@ private async Task<string> CreateUniqueSlug(string name)
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occurred while trying to update the project");
         }
 
         var dto = new ProjectDto()
@@ -799,9 +840,9 @@ private async Task<string> CreateUniqueSlug(string name)
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occurred while trying to update the project");
         }
 
         var dto = new ProjectDto()
@@ -862,9 +903,9 @@ private async Task<string> CreateUniqueSlug(string name)
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occurred while trying to update the project");
         }
 
         var dto = new ProjectDto()

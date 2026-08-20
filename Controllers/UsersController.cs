@@ -67,9 +67,9 @@ public class UsersController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occurred while trying to delete this user account");
         }
 
         return NoContent();
@@ -100,9 +100,9 @@ public class UsersController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occured while trying to update account details");
         }
         
         var dto = new UserDto()
@@ -147,17 +147,41 @@ public class UsersController : ControllerBase
                     )
                 );
 
-        if(request.Role is not null) query = query.Where(m => m.Role == request.Role);
-        else query = query.Where(m => m.Role != MemberRole.Banned);
 
-        if(request.Owner) query = query.Where(m => m.Role == MemberRole.Owner);
+        if (request.RoleMin)
+        {
+            if(request.Role == MemberRole.Contributor) query = query.Where(m => m.Role == MemberRole.Contributor || m.Role == MemberRole.Admin || m.Role == MemberRole.Owner);
+            else if(request.Role == MemberRole.Admin) query = query.Where(m => m.Role == MemberRole.Admin || m.Role == MemberRole.Owner);
+            else if(request.Role is not null) query = query.Where(m => m.Role == request.Role);
+            else query = query.Where(m => m.Role != MemberRole.Banned);
+        }
+        else
+        {
+            if(request.Role is not null) query = query.Where(m => m.Role == request.Role);
+            else query = query.Where(m => m.Role != MemberRole.Banned);
+        }
+
+        query = request.SortBy switch
+        {
+            MemberSort.Name => request.Descending
+                ? query.OrderByDescending(m => m.Project.Name).ThenByDescending(m => m.JoinTime)
+                : query.OrderBy(m => m.Project.Name).ThenBy(m => m.JoinTime),
+
+            MemberSort.Role => request.Descending
+                ? query.OrderByDescending(m => m.Role).ThenByDescending(m => m.Project.Name).ThenByDescending(m => m.JoinTime)
+                : query.OrderBy(m => m.Role).ThenBy(m => m.Project.Name).ThenBy(m => m.JoinTime),
+
+            MemberSort.Time => request.Descending
+                ? query.OrderByDescending(m => m.JoinTime).ThenByDescending(m => m.Project.Name)
+                : query.OrderBy(m => m.JoinTime).ThenBy(m => m.Project.Name),
+
+             _ => query.OrderBy(m => m.Project.Name).ThenBy(m => m.JoinTime)
+        };
 
         var page = Math.Max(request.Page, 1);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
 
         var memberships = await query
-        .OrderBy(m => m.Project.Name)
-        .ThenBy(m => m.ProjectId)
         .Skip((page - 1) * pageSize)
         .Take(pageSize)
         .Select(m =>
@@ -188,6 +212,27 @@ public class UsersController : ControllerBase
         var page = Math.Max(request.Page, 1);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
         
+        query = request.SortBy switch
+        {
+            TodoSort.IssueNo => request.Descending 
+                ? query.OrderByDescending(t => t.ProjectId).ThenByDescending(t => t.IssueNo)
+                : query.OrderBy(t => t.ProjectId).ThenBy(t => t.IssueNo),
+
+            TodoSort.Title => request.Descending 
+                ? query.OrderByDescending(t => t.ProjectId).ThenByDescending(t => t.Title)
+                : query.OrderBy(t => t.ProjectId).ThenBy(t => t.Title),
+
+            TodoSort.Status => request.Descending 
+                ? query.OrderByDescending(t => t.Status).ThenByDescending(t => t.ProjectId).ThenByDescending(t => t.IssueNo)
+                : query.OrderBy(t => t.Status).ThenBy(t => t.ProjectId).ThenBy(t => t.IssueNo),
+
+            // TodoSort.CreatedBy => request.Descending
+            // ? query.OrderByDescending(t => t.CreatedBy).ThenByDescending(t => t.IssueNo)
+            // : query.OrderBy(t => t.CreatedBy).ThenBy(t => t.IssueNo),
+
+            _ => query.OrderBy(t => t.ProjectId).ThenBy(t => t.IssueNo)
+        };
+
         var todos = await query
             .OrderBy(t => t.ProjectId)
             .ThenBy(t => t.IssueNo)
