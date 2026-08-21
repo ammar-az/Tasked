@@ -51,21 +51,6 @@ public class OrgsController : ControllerBase
         );
     }
 
-    [HttpGet]
-    public async Task<IActionResult> GetOrgs()
-    {
-        var orgs = await _db.Organizations
-        .AsNoTracking()
-        .Select(o => 
-            new OrgDto
-            {
-                Id = o.Id,
-                Name = o.Name
-            }).ToListAsync();
-
-        return Ok(orgs);
-    }
-
     [HttpGet("{orgId}")]
     public async Task<IActionResult> GetOrgById(Guid orgId)
     {
@@ -240,4 +225,29 @@ public class OrgsController : ControllerBase
 
         return NoContent();
     }
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<OrgDto>>> GetOrgs([FromQuery] OrgsRequest request)
+    {
+        var query = _db.Organizations
+            .AsNoTracking();
+
+        if(request.Descending) query = query.OrderByDescending(o => o.Name);
+        else query = query.OrderBy(o => o.Name);
+
+        var page = Math.Max(request.Page, 1);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+
+        var orgs = await query
+        .Skip((page - 1) * pageSize)
+        .Take(pageSize)
+        .Select(o =>
+            new OrgDto()
+            {
+                Id = o.Id,
+                Name = o.Name
+            }).ToListAsync();
+    
+        return Ok(orgs);
+    }
+
 }
