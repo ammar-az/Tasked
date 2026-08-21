@@ -607,6 +607,7 @@ private async Task<string> CreateUniqueSlug(string name)
                     Id = t.Id,
                     ProjectId = t.ProjectId,
                     ProjectName = t.Project.Name,
+                    ProjectSlug = t.Project.Slug,
                     Title = t.Title,
                     Description = t.Description,
                     Status = t.Status,
