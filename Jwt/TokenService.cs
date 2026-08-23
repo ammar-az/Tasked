@@ -17,7 +17,6 @@ public class TokenService(IConfiguration config)
         {
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Name, user.Username),
-            new(ClaimTypes.Email, user.Email)
         };
 
         var key = new SymmetricSecurityKey(

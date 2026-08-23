@@ -84,6 +84,11 @@ namespace Tasked.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("owner_id");
 
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("slug");
+
                     b.HasKey("Id")
                         .HasName("pk_projects");
 
@@ -96,6 +101,10 @@ namespace Tasked.Migrations
 
                     b.HasIndex("OwnerId")
                         .HasDatabaseName("ix_projects_owner_id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasDatabaseName("ix_projects_slug");
 
                     b.ToTable("projects", (string)null);
                 });
@@ -226,11 +235,6 @@ namespace Tasked.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("email");
-
                     b.Property<Guid?>("OrgId")
                         .HasColumnType("uuid")
                         .HasColumnName("org_id");
@@ -247,10 +251,6 @@ namespace Tasked.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_users");
-
-                    b.HasIndex("Email")
-                        .IsUnique()
-                        .HasDatabaseName("ix_users_email");
 
                     b.HasIndex("OrgId")
                         .HasDatabaseName("ix_users_org_id");

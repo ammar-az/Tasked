@@ -30,7 +30,6 @@ namespace Tasked.Migrations
                     id = table.Column<Guid>(type: "uuid", nullable: false),
                     username = table.Column<string>(type: "text", nullable: false),
                     org_id = table.Column<Guid>(type: "uuid", nullable: true),
-                    email = table.Column<string>(type: "text", nullable: false),
                     password = table.Column<string>(type: "text", nullable: false)
                 },
                 constraints: table =>
@@ -51,6 +50,7 @@ namespace Tasked.Migrations
                     owner_id = table.Column<Guid>(type: "uuid", nullable: false),
                     org_id = table.Column<Guid>(type: "uuid", nullable: true),
                     name = table.Column<string>(type: "text", nullable: false),
+                    slug = table.Column<string>(type: "text", nullable: false),
                     description = table.Column<string>(type: "text", nullable: true),
                     is_visible = table.Column<bool>(type: "boolean", nullable: false),
                     issue_count = table.Column<int>(type: "integer", nullable: false),
@@ -185,6 +185,12 @@ namespace Tasked.Migrations
                 column: "owner_id");
 
             migrationBuilder.CreateIndex(
+                name: "ix_projects_slug",
+                table: "projects",
+                column: "slug",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "ix_refresh_tokens_expires_at",
                 table: "refresh_tokens",
                 column: "expires_at");
@@ -208,12 +214,6 @@ namespace Tasked.Migrations
                 name: "ix_todos_project_id_issue_no",
                 table: "todos",
                 columns: new[] { "project_id", "issue_no" },
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "ix_users_email",
-                table: "users",
-                column: "email",
                 unique: true);
 
             migrationBuilder.CreateIndex(

@@ -33,9 +33,9 @@ public class OrgsController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException )
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("Could not create this organization");
         }
 
         var dto = new OrgDto()
@@ -51,27 +51,33 @@ public class OrgsController : ControllerBase
         );
     }
 
-    [HttpGet]
-    public async Task<IActionResult> GetOrgs()
-    {
-        var orgs = await _db.Organizations
-        .AsNoTracking()
-        .Select(o => 
-            new OrgDto
-            {
-                Id = o.Id,
-                Name = o.Name
-            }).ToListAsync();
-
-        return Ok(orgs);
-    }
-
-    [HttpGet("{orgId}")]
+    [HttpGet("id/{orgId}")]
     public async Task<IActionResult> GetOrgById(Guid orgId)
     {
         var org = await _db.Organizations
         .AsNoTracking()
         .Where(o => o.Id == orgId)
+        .Select(o => 
+            new OrgDto
+            {
+                Id = o.Id,
+                Name = o.Name
+            }).SingleOrDefaultAsync();
+
+        if(org == null)
+        {
+            return NotFound();
+        }
+
+        return Ok(org);
+    }
+
+    [HttpGet("{orgName}")]
+    public async Task<IActionResult> GetOrgByName(string orgName)
+    {
+        var org = await _db.Organizations
+        .AsNoTracking()
+        .Where(o => o.Name == orgName)
         .Select(o => 
             new OrgDto
             {
@@ -115,51 +121,76 @@ public class OrgsController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("Could not delete this organization");
         }
 
         return NoContent();
     }
 
     [HttpGet("{orgId}/projects")]
-    public async Task<IActionResult> GetOrgProjects(Guid orgId)
+    public async Task<IActionResult> GetOrgProjects(Guid orgId, [FromQuery] OrgsRequest request)
     {
-        var projects = await _db.Projects
-        .AsNoTracking()
-        .Where(p => p.OrgId == orgId)
-        .Select(p => 
-            new ProjectDto
-            {
-                Id = p.Id,
-                OwnerId = p.OwnerId,
-                OwnerName = p.Owner.Username,
-                Name = p.Name,
-                Description = p.Description,
-                OrgId = p.OrgId,
-                OrgName = p.Org == null ? null : p.Org.Name,
-                CreatedAt = p.CreatedAt,
-                IsVisible = p.IsVisible,
-                JoinPolicy = p.JoinPolicy
-            }).ToListAsync();
+
+        var query = _db.Projects
+            .AsNoTracking()
+            .Where(p => p.OrgId == orgId);
+        
+        if(!string.IsNullOrWhiteSpace(request.Search)) query = query.Where(p => p.Name.Contains(request.Search));
+
+        if(request.Descending) query = query.OrderByDescending(p => p.Name);
+        else query = query.OrderBy(p => p.Name);
+
+        var page = Math.Max(request.Page, 1);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+
+        var projects = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(p => 
+                new ProjectDto
+                {
+                    Id = p.Id,
+                    OwnerId = p.OwnerId,
+                    OwnerName = p.Owner.Username,
+                    Name = p.Name,
+                    Slug = p.Slug,
+                    Description = p.Description,
+                    OrgId = p.OrgId,
+                    OrgName = p.Org == null ? null : p.Org.Name,
+                    CreatedAt = p.CreatedAt,
+                    IsVisible = p.IsVisible,
+                    JoinPolicy = p.JoinPolicy
+                }).ToListAsync();
 
         return Ok(projects);
     }
 
     [HttpGet("{orgId}/users")]
-    public async Task<IActionResult> GetOrgUsers(Guid orgId)
+    public async Task<IActionResult> GetOrgUsers(Guid orgId, [FromQuery] OrgsRequest request)
     {
-        var users = await _db.Users
-        .AsNoTracking()
-        .Where(u => u.OrgId == orgId)
-        .Select(u => 
-            new UserDto
-            {
-                Id = u.Id,
-                Username = u.Username,
-                Email = u.Email
-            }).ToListAsync();
+        var query = _db.Users
+            .AsNoTracking()
+            .Where(u => u.OrgId == orgId);
+
+        if(!string.IsNullOrWhiteSpace(request.Search)) query = query.Where(u => u.Username.Contains(request.Search));
+
+        if(request.Descending) query = query.OrderByDescending(u => u.Username);
+        else query = query.OrderBy(u => u.Username);
+
+        var page = Math.Max(request.Page, 1);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);   
+
+        var users = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(u => 
+                new UserDto
+                {
+                    Id = u.Id,
+                    Username = u.Username,
+                }).ToListAsync();
 
         return Ok(users);
     }
@@ -199,9 +230,9 @@ public class OrgsController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("Could not join this organization");
         }
 
         return Ok();
@@ -233,11 +264,38 @@ public class OrgsController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("Could not leave this organization");
         }
 
         return NoContent();
     }
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<OrgDto>>> GetOrgs([FromQuery] OrgsRequest request)
+    {
+        var query = _db.Organizations
+            .AsNoTracking();
+
+        if(!string.IsNullOrWhiteSpace(request.Search)) query = query.Where(o => o.Name.Contains(request.Search));
+
+        if(request.Descending) query = query.OrderByDescending(o => o.Name);
+        else query = query.OrderBy(o => o.Name);
+
+        var page = Math.Max(request.Page, 1);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+
+        var orgs = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(o =>
+                new OrgDto()
+                {
+                    Id = o.Id,
+                    Name = o.Name
+                }).ToListAsync();
+    
+        return Ok(orgs);
+    }
+
 }

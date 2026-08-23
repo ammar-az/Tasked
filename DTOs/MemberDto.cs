@@ -18,6 +18,7 @@ public record MemberOverviewDto
 {
     required public Guid ProjectId {get; init;}
     required public string ProjectName {get; init;}
+    required public string ProjectSlug {get; init;}
     public string? ProjectDesc {get; init;}
     required public MemberRole Role {get; init;}
     public Guid? OrgId {get; init;}
@@ -28,8 +29,8 @@ public record MemberOverviewRequest
 {
     public string? Search {get; init;}
     public MemberRole? Role {get; init;}
-    public bool Owner {get; init;}
-    public string SortBy {get; init;} = "Name";
+    public bool RoleMin {get; init;}
+    public MemberSort SortBy {get; init;} = MemberSort.Name;
     public bool Descending {get; init;}
 
     public int Page {get; init;} = 1;

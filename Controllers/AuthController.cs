@@ -25,22 +25,19 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
     public async Task<IActionResult> Register(RegisterRequest dto)
     {
         var existingUser = await _db.Users
-        .AsNoTracking()
-        .FirstOrDefaultAsync(u => u.Username == dto.Username || u.Email == dto.Email);
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Username == dto.Username);
 
         if (existingUser != null)
         {
             if (existingUser.Username == dto.Username)
                 return Conflict("Username is already taken.");
-            if (existingUser.Email == dto.Email)
-                return Conflict("Email already in use.");
         }
 
         var user = new User
         {
             Id = Guid.NewGuid(),
             Username = dto.Username,
-            Email = dto.Email,
         };
 
         user.Password = _hasher.HashPassword(user, dto.Password);
@@ -51,9 +48,9 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("Could not create new account.");
         }
 
         var token = _tokenService.CreateAccessToken(user);
@@ -66,7 +63,7 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
     {
         await PurgeExpired();
 
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == dto.Username);
         if (user == null)
             return Unauthorized("Invalid email or password.");
 
@@ -101,9 +98,9 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occurred while verifying your session. Please try logging in again.");
         }
 
         return await NewSession(existingToken.User);
@@ -145,7 +142,6 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
                     Username = u.Username,
                     OrgId = u.OrgId,
                     OrgName = u.Org == null ? null : u.Org.Name,
-                    Email = u.Email
                 }).SingleOrDefaultAsync();
 
         if (user == null) return NotFound();
@@ -171,9 +167,9 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occurred while verifying your session. Please try logging in again.");
         }
 
         var dto = new UserDto
@@ -182,7 +178,6 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
             Username = user.Username,
             OrgId = user.OrgId,
             OrgName = null,
-            Email = user.Email
         };
 
         Response.Cookies.Append(

@@ -6,6 +6,7 @@ using Tasked.DTOs;
 using Tasked.Entities;
 using Tasked.Enums;
 using Tasked.Services;
+using System.Text.RegularExpressions;
 
 namespace Tasked.Controllers;
 
@@ -21,6 +22,34 @@ public class ProjectsController : ControllerBase
         _db = db;
         _auth = projectService;
     }
+
+
+
+private async Task<string> CreateUniqueSlug(string name)
+{
+    var baseSlug = name
+        .Trim()
+        .ToLowerInvariant();
+
+    baseSlug = Regex.Replace(baseSlug, @"[^a-z0-9]+", "-");
+    baseSlug = baseSlug.Trim('-');
+
+    if (string.IsNullOrWhiteSpace(baseSlug))
+    {
+        baseSlug = "project";
+    }
+
+    var slug = baseSlug;
+    var number = 2;
+
+    while (await _db.Projects.AnyAsync(p => p.Slug == slug))
+    {
+        slug = $"{baseSlug}-{number}";
+        number++;
+    }
+
+    return slug;
+}
 
     [HttpPost]
     [Authorize]
@@ -41,6 +70,7 @@ public class ProjectsController : ControllerBase
             OrgId = request.Org ? user.OrgId : null,
             OwnerId = userId,
             Name = request.Name,
+            Slug = await CreateUniqueSlug(request.Name),
             Description = request.Description,
             IsVisible = request.IsVisible,
             JoinPolicy = request.JoinPolicy,
@@ -73,6 +103,7 @@ public class ProjectsController : ControllerBase
             OwnerId = project.OwnerId,
             OwnerName = user.Username,
             Name = project.Name,
+            Slug = await CreateUniqueSlug(request.Name),
             Description = project.Description,
             OrgId = project.OrgId,
             OrgName = user.Org?.Name,
@@ -88,32 +119,67 @@ public class ProjectsController : ControllerBase
         );
     }
 
-    [HttpGet("{projectId}")]
+    [HttpGet("{projectSlug}")]
+    public async Task<ActionResult<ProjectDto>> GetProject(string projectSlug)
+    {
+        var requesterId = User.GetNullableUserId();
+
+        var project = await _db.Projects
+            .AsNoTracking()
+            .Where(p => p.Slug == projectSlug)
+            .Include(p => p.Owner)
+            .Include(p => p.Org)
+            .SingleOrDefaultAsync();
+
+        if(project is null) return NotFound();
+
+        if(!await _auth.CanView(project, requesterId)) return NotFound();
+
+        var dto = new ProjectDto()
+        {
+            Id = project.Id,
+            OwnerId = project.OwnerId,
+            OwnerName = project.Owner.Username,
+            Name = project.Name,
+            Slug = project.Slug,
+            Description = project.Description,
+            OrgId = project.OrgId,
+            OrgName = project.Org?.Name,
+            IsVisible = project.IsVisible,
+            JoinPolicy = project.JoinPolicy,
+            CreatedAt = project.CreatedAt
+        };
+
+        return Ok(dto);
+    }
+
+    [HttpGet("id/{projectId}")]
     public async Task<ActionResult<ProjectDto>> GetProject(Guid projectId)
     {
         var requesterId = User.GetNullableUserId();
 
-        var p = await _db.Projects
+        var project = await _db.Projects
             .AsNoTracking()
             .Where(p => p.Id == projectId)
             .Include(p => p.Owner)
             .SingleOrDefaultAsync();
 
-        if(p is null) return NotFound();
+        if(project is null) return NotFound();
 
-        if(!await _auth.CanView(p, requesterId)) return NotFound();
+        if(!await _auth.CanView(project, requesterId)) return NotFound();
 
         var dto = new ProjectDto()
         {
-            Id = p.Id,
-            OwnerId = p.OwnerId,
-            OwnerName = p.Owner.Username,
-            Name = p.Name,
-            Description = p.Description,
-            OrgId = p.OrgId,
-            IsVisible = p.IsVisible,
-            JoinPolicy = p.JoinPolicy,
-            CreatedAt = p.CreatedAt
+            Id = project.Id,
+            OwnerId = project.OwnerId,
+            OwnerName = project.Owner.Username,
+            Name = project.Name,
+            Slug = project.Slug,
+            Description = project.Description,
+            OrgId = project.OrgId,
+            IsVisible = project.IsVisible,
+            JoinPolicy = project.JoinPolicy,
+            CreatedAt = project.CreatedAt
         };
 
         return Ok(dto);
@@ -146,9 +212,9 @@ public class ProjectsController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occurred and the project could not be edited.");
         }
 
         var dto = new ProjectDto()
@@ -157,6 +223,7 @@ public class ProjectsController : ControllerBase
             OwnerId = project.OwnerId,
             OwnerName = project.Owner.Username,
             Name = project.Name,
+            Slug = project.Slug,
             Description = project.Description,
             OrgId = project.OrgId,
             OrgName = project.Org?.Name,
@@ -211,9 +278,9 @@ public class ProjectsController : ControllerBase
 
         if(preexisting is not null)
         {
-            if(preexisting.Role == MemberRole.Banned) return Forbid();
+            if(preexisting.Role == MemberRole.Banned) return Forbid("You cannot join a project you have been banned from.");
             
-            else if(preexisting.Role != MemberRole.Invited) return Conflict();
+            else if(preexisting.Role != MemberRole.Invited) return Conflict("You are already a member of this project");
         }
 
         var membership = new ProjectMember
@@ -238,9 +305,9 @@ public class ProjectsController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("There was an error while attempting to join the project.");
         }
 
         var dto = new MemberDto()
@@ -282,7 +349,7 @@ public class ProjectsController : ControllerBase
             .Where(m => m.ProjectId == projectId && m.UserId == userId)
             .AnyAsync();
 
-        if(preexisting) return Conflict();
+        if(preexisting) return Conflict("You cannot invite a user who is already a member of the project or has already been invited");
 
         var membership = new ProjectMember
         {
@@ -298,9 +365,9 @@ public class ProjectsController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("There was an error while inviting the user to the project.");
         }
 
         var dto = new MemberDto()
@@ -337,9 +404,9 @@ public class ProjectsController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("There was an error while rejecting the invite.");
         }
 
         return NoContent();
@@ -390,14 +457,14 @@ public class ProjectsController : ControllerBase
     }
 
     //get all members of a project, same visible check as before, 
-    [HttpGet("{projectId}/members")]
-    public async Task<ActionResult<IEnumerable<MemberDto>>> GetMembers(Guid projectId, [FromQuery] MemberOverviewRequest request)
+    [HttpGet("{projectSlug}/members")]
+    public async Task<ActionResult<IEnumerable<MemberDto>>> GetMembers(string projectSlug, [FromQuery] MemberOverviewRequest request)
     {   
         var requesterId = User.GetNullableUserId();
         
         var project = await _db.Projects
             .AsNoTracking()
-            .Where(p => p.Id == projectId)
+            .Where(p => p.Slug == projectSlug)
             .FirstOrDefaultAsync();
 
         if(project is null) return NotFound();
@@ -406,19 +473,34 @@ public class ProjectsController : ControllerBase
 
         var query = _db.ProjectMembers
             .AsNoTracking()
-            .Where(m => m.ProjectId == projectId);
+            .Where(m => m.ProjectId == project.Id);
 
         if(request.Role is not null && Enum.IsDefined((MemberRole) request.Role)) query = query.Where(m => m.Role == request.Role);
         else query = query.Where(m => m.Role != MemberRole.Banned && m.Role != MemberRole.Invited);
 
         if(!string.IsNullOrWhiteSpace(request.Search)) query = query.Where(m => m.User.Username.Contains(request.Search));
 
+        query = request.SortBy switch
+        {
+            MemberSort.Name => request.Descending
+                ? query.OrderByDescending(m => m.User.Username).ThenByDescending(m => m.JoinTime)
+                : query.OrderBy(m => m.User.Username).ThenBy(m => m.JoinTime),
+
+            MemberSort.Role => request.Descending
+                ? query.OrderByDescending(m => m.Role).ThenByDescending(m => m.User.Username)
+                : query.OrderBy(m => m.Role).ThenBy(m => m.User.Username),
+
+            MemberSort.Time => request.Descending
+                ? query.OrderByDescending(m => m.JoinTime).ThenByDescending(m => m.User.Username)
+                : query.OrderBy(m => m.JoinTime).ThenBy(m => m.User.Username),
+
+             _ => query.OrderBy(m => m.User.Username).ThenBy(m => m.JoinTime)
+        };
+
         var page = Math.Max(request.Page, 1);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
 
         var members = await query
-        .OrderBy(m => m.Role)
-        .ThenBy(m => m.JoinTime)
         .Skip((page - 1) * pageSize)
         .Take(pageSize)
         .Select(m => 
@@ -437,14 +519,14 @@ public class ProjectsController : ControllerBase
         return Ok(members);
     }
 
-    [HttpGet("{projectId}/members/me")]
-    public async Task<IActionResult> GetMember(Guid projectId)
+    [HttpGet("{projectSlug}/members/me")]
+    public async Task<IActionResult> GetMember(string projectSlug)
     {
         var requesterId = User.GetNullableUserId();
         if (requesterId == null) return NoContent();
 
         var member = await _db.ProjectMembers
-            .Where(m => m.ProjectId == projectId && m.UserId == requesterId)
+            .Where(m => m.Project.Slug == projectSlug && m.UserId == requesterId)
             .Select(m => 
                 new MemberDto()
                 {
@@ -461,13 +543,13 @@ public class ProjectsController : ControllerBase
         return Ok(member);
     }
 
-    [HttpGet("{projectId}/todos")]
-    public  async Task<IActionResult> GetProjectTodos(Guid projectId, [FromQuery] GetManyTodosRequest request)
+    [HttpGet("{projectSlug}/todos")]
+    public  async Task<IActionResult> GetProjectTodos(string projectSlug, [FromQuery] GetManyTodosRequest request)
     {   
         var requesterId = User.GetNullableUserId();
         var parent = await _db.Projects
             .AsNoTracking()
-            .Where(p => p.Id == projectId)
+            .Where(p => p.Slug == projectSlug)
             .FirstOrDefaultAsync();
 
         if(parent is null) return NotFound();
@@ -476,7 +558,7 @@ public class ProjectsController : ControllerBase
 
         var query = _db.Todos
             .AsNoTracking()
-            .Where(t => t.ProjectId == projectId);
+            .Where(t => t.ProjectId == parent.Id);
 
         if(!string.IsNullOrWhiteSpace(request.Search)) query = query.Where(t => t.Title.Contains(request.Search) || (!string.IsNullOrWhiteSpace(t.Description) && t.Description.Contains(request.Search)));
         
@@ -488,11 +570,35 @@ public class ProjectsController : ControllerBase
             .Include(t => t.Assigned)
             .Include(t => t.CreatedBy);
 
+        query = request.SortBy switch
+        {
+            TodoSort.IssueNo => request.Descending 
+                ? query.OrderByDescending(t => t.IssueNo).ThenByDescending(t => t.Title)
+                : query.OrderBy(t => t.IssueNo).ThenBy(t => t.Title),
+
+            TodoSort.Title => request.Descending 
+                ? query.OrderByDescending(t => t.Title).ThenByDescending(t => t.IssueNo)
+                : query.OrderBy(t => t.Title).ThenBy(t => t.IssueNo),
+
+            TodoSort.Status => request.Descending 
+                ? query.OrderByDescending(t => t.Status).ThenByDescending(t => t.IssueNo)
+                : query.OrderBy(t => t.Status).ThenBy(t => t.IssueNo),
+
+            // TodoSort.Assigned => request.Descending
+            // ? query.OrderByDescending(t => t.Assigned).ThenByDescending(t => t.IssueNo)
+            // : query.OrderBy(t => t.Assigned).ThenBy(t => t.IssueNo),
+
+            // TodoSort.CreatedBy => request.Descending
+            // ? query.OrderByDescending(t => t.CreatedBy).ThenByDescending(t => t.IssueNo)
+            // : query.OrderBy(t => t.CreatedBy).ThenBy(t => t.IssueNo),
+
+            _ => query.OrderBy(t => t.IssueNo).ThenBy(t => t.Title)
+        };
+
         var page = Math.Max(request.Page, 1);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
 
         var todos = await query
-            .OrderBy(t => t.IssueNo)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(t => 
@@ -501,6 +607,7 @@ public class ProjectsController : ControllerBase
                     Id = t.Id,
                     ProjectId = t.ProjectId,
                     ProjectName = t.Project.Name,
+                    ProjectSlug = t.Project.Slug,
                     Title = t.Title,
                     Description = t.Description,
                     Status = t.Status,
@@ -547,7 +654,7 @@ public class ProjectsController : ControllerBase
 
         if(member is null) return NotFound("No such membership");
 
-        if(member.Role == MemberRole.Owner) return Conflict("Cannot ban owner, ownership must be transferred");
+        if(member.Role == MemberRole.Owner) return Conflict("Cannot ban owner");
 
         if(member.Role == MemberRole.Admin && !_auth.OwnsProject(project, issuerId)) return Forbid();
 
@@ -564,9 +671,9 @@ public class ProjectsController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occurred while managing the project member");
         }
 
         var dto = new MemberDto()
@@ -643,9 +750,9 @@ public class ProjectsController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occurred while managing the project member");
         }
 
         var dto = new MemberDto()
@@ -689,9 +796,9 @@ public class ProjectsController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occurred while trying to update the project");
         }
 
         var dto = new ProjectDto()
@@ -700,6 +807,7 @@ public class ProjectsController : ControllerBase
             OwnerId = project.OwnerId,
             OwnerName = project.Owner.Username,
             Name = project.Name,
+            Slug = project.Slug,
             Description = project.Description,
             OrgId = project.OrgId,
             OrgName = project.Org.Name,
@@ -733,9 +841,9 @@ public class ProjectsController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occurred while trying to update the project");
         }
 
         var dto = new ProjectDto()
@@ -744,6 +852,7 @@ public class ProjectsController : ControllerBase
             OwnerId = project.OwnerId,
             OwnerName = "I forgor :skull:",
             Name = project.Name,
+            Slug = project.Slug,
             Description = project.Description,
             CreatedAt = project.CreatedAt,
             IsVisible = project.IsVisible,
@@ -795,9 +904,9 @@ public class ProjectsController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occurred while trying to update the project");
         }
 
         var dto = new ProjectDto()
@@ -806,6 +915,7 @@ public class ProjectsController : ControllerBase
             OwnerId = project.OwnerId,
             OwnerName = membership.User.Username,
             Name = project.Name,
+            Slug = project.Slug,
             Description = project.Description,
             OrgId = project.OrgId,
             OrgName = project.Org?.Name,

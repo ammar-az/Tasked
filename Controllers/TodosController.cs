@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Tasked.Data;
@@ -23,9 +22,9 @@ public class TodosController : ControllerBase
         _auth = projectService;
     }
 
-    [HttpPost("project/{projectId}")]
+    [HttpPost("project/{projectSlug}")]
     [Authorize]
-    public async Task<IActionResult> CreateTodo(Guid projectId, TodoRequest request)
+    public async Task<IActionResult> CreateTodo(string projectSlug, TodoRequest request)
     {
         if(!Enum.IsDefined(request.Status)) return BadRequest("Invalid status");
         await using var transaction = await _db.Database.BeginTransactionAsync();
@@ -33,7 +32,7 @@ public class TodosController : ControllerBase
         var requesterId = User.GetUserId();
 
         var membership = await _db.ProjectMembers
-            .Where(m => m.UserId == requesterId && m.ProjectId == projectId)
+            .Where(m => m.UserId == requesterId && m.Project.Slug == projectSlug)
             .Include(m => m.User)
             .Include(m=> m.Project)
             .SingleOrDefaultAsync();
@@ -42,7 +41,7 @@ public class TodosController : ControllerBase
 
         var todo = new Todo
         {
-            ProjectId = projectId,
+            ProjectId = membership.Project.Id,
             Title = request.Title,
             Description = request.Description,
             Status = request.Status,
@@ -61,10 +60,10 @@ public class TodosController : ControllerBase
             await _db.SaveChangesAsync();
             await transaction.CommitAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
             await transaction.RollbackAsync();
-            return Conflict(e.InnerException?.Message);
+            return Conflict("Task could not be created.");
         }
 
         var dto = new TodoDto()
@@ -72,6 +71,7 @@ public class TodosController : ControllerBase
             Id = todo.Id,
             ProjectId = todo.ProjectId,
             ProjectName = membership.Project.Name,
+            ProjectSlug = membership.Project.Slug,
             Title = todo.Title,
             Description = todo.Description,
             Status = todo.Status,
@@ -113,9 +113,9 @@ public class TodosController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("This task could not be deleted");
         }
         
         return NoContent();
@@ -135,6 +135,7 @@ public class TodosController : ControllerBase
                     Id = t.Id,
                     ProjectId = t.ProjectId,
                     ProjectName = t.Project.Name,
+                    ProjectSlug = t.Project.Slug,
                     Title = t.Title,
                     Description = t.Description,
                     Status = t.Status,
@@ -160,20 +161,21 @@ public class TodosController : ControllerBase
         return Ok(todo);
     }
 
-    [HttpGet("project/{projectId}/{issueNo}")]
-    public async Task<IActionResult> GetTodoByNo(Guid projectId, int issueNo)
+    [HttpGet("project/{projectSlug}/{issueNo}")]
+    public async Task<IActionResult> GetTodoByNo(string projectSlug, int issueNo)
     {
         var requesterId = User.GetNullableUserId();
         
         var todo = await _db.Todos
             .AsNoTracking()
-            .Where(t => t.ProjectId == projectId && t.IssueNo == issueNo)
+            .Where(t => t.Project.Slug == projectSlug && t.IssueNo == issueNo)
             .Select(t => 
                 new TodoDto()
                 {
                     Id = t.Id,
                     ProjectId = t.ProjectId,
                     ProjectName = t.Project.Name,
+                    ProjectSlug = t.Project.Slug,
                     Title = t.Title,
                     Description = t.Description,
                     Status = t.Status,
@@ -192,9 +194,7 @@ public class TodosController : ControllerBase
             .Where(p => p.Id == todo.ProjectId)
             .FirstOrDefaultAsync();
 
-        if(parent is null) return StatusCode(500);
-
-        if(!await _auth.CanView(parent, requesterId)) return NotFound();
+        if(parent is null || !await _auth.CanView(parent, requesterId)) return NotFound();
 
         return Ok(todo);
     }
@@ -235,9 +235,9 @@ public class TodosController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occurred while trying to assign a user to this task.");
         }
 
         var dto = new TodoDto()
@@ -245,6 +245,7 @@ public class TodosController : ControllerBase
             Id = todo.Id,
             ProjectId = todo.ProjectId,
             ProjectName = membership.Project.Name,
+            ProjectSlug = membership.Project.Slug,
             Title = todo.Title,
             Description = todo.Description,
             Status = todo.Status,
@@ -298,9 +299,9 @@ public class TodosController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occured while updating the task's status");
         }
 
         var dto = new TodoDto()
@@ -308,6 +309,7 @@ public class TodosController : ControllerBase
             Id = todo.Id,
             ProjectId = todo.ProjectId,
             ProjectName = membership.Project.Name,
+            ProjectSlug = membership.Project.Slug,
             Title = todo.Title,
             Description = todo.Description,
             Status = todo.Status,
@@ -368,15 +370,16 @@ public class TodosController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("An error occured while updating the task");
         }
         var dto = new TodoDto()
         {
             Id = todo.Id,
             ProjectId = todo.ProjectId,
             ProjectName = todo.Project.Name,
+            ProjectSlug = membership.Project.Slug,
             Title = todo.Title,
             Description = todo.Description,
             Status = todo.Status,

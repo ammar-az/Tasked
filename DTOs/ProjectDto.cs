@@ -8,6 +8,7 @@ public record ProjectDto
     required public Guid OwnerId {get; init;}
     required public string OwnerName {get; init;}
     required public string Name {get; init;} 
+    required public string Slug {get; init;} 
     public string? Description {get; init;}
     public Guid? OrgId {get; init;}
     public string? OrgName {get; init;}

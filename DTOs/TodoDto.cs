@@ -7,6 +7,7 @@ public record TodoDto
     required public Guid Id {get; init;}
     required public Guid ProjectId {get; init;}
     required public string ProjectName {get; init;}
+    required public string ProjectSlug {get; init;}
     required public string Title {get; init;} 
     public string? Description {get; init;}
     required public TodoStatus Status {get; init;}
@@ -42,7 +43,7 @@ public record GetManyTodosRequest
 
     public Guid? Assigned {get; init;}
     
-    public string SortBy {get; init;} = "IssueNo";
+    required public TodoSort SortBy {get; init;} = TodoSort.IssueNo;
     public bool Descending {get; init;}
 
     public int Page {get; init;} = 1;
