@@ -103,7 +103,7 @@ private async Task<string> CreateUniqueSlug(string name)
             OwnerId = project.OwnerId,
             OwnerName = user.Username,
             Name = project.Name,
-            Slug = await CreateUniqueSlug(request.Name),
+            Slug = project.Slug,
             Description = project.Description,
             OrgId = project.OrgId,
             OrgName = user.Org?.Name,
