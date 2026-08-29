@@ -134,11 +134,14 @@ public class UsersController : ControllerBase
                 )
                 .FirstOrDefaultAsync();
 
-        //implements own visibility check
         var query = _db.ProjectMembers
             .AsNoTracking()
-            .Where(m => m.UserId == userId)
-            .Where(m => 
+            .Where(m => m.UserId == userId);
+        
+        //implements own visibility check, but skips if user is querying their own info
+        if(requesterId != userId)
+        {
+            query = query.Where(m => 
                 m.Project.IsVisible ||
                     (requester != null && 
                         ((requester.OrgId != null && requester.OrgId == m.Project.OrgId)
@@ -146,7 +149,7 @@ public class UsersController : ControllerBase
                         m.Project.Members.Any(pm => pm.UserId == requesterId && pm.Role != MemberRole.Banned)) 
                     )
                 );
-
+        }
 
         if (request.RoleMin)
         {

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Tasked.Data;
 using Tasked.DTOs;
 using Tasked.Entities;
+using Tasked.Enums;
 using Tasked.Services;
 
 namespace Tasked.Controllers;
@@ -132,10 +133,32 @@ public class OrgsController : ControllerBase
     [HttpGet("{orgId}/projects")]
     public async Task<IActionResult> GetOrgProjects(Guid orgId, [FromQuery] OrgsRequest request)
     {
+        var requesterId = User.GetNullableUserId();
+
+        var requester = requesterId is null 
+            ? null 
+            : await _db.Users
+                .AsNoTracking()
+                .Where(u => u.Id == requesterId)
+                .Select(u =>
+                    new
+                    {
+                        u.OrgId,
+                    }
+                )
+                .FirstOrDefaultAsync();
 
         var query = _db.Projects
             .AsNoTracking()
-            .Where(p => p.OrgId == orgId);
+            .Where(p => p.OrgId == orgId)
+            .Where(p => 
+                p.IsVisible ||
+                    (requester != null && 
+                        ((requester.OrgId != null && requester.OrgId == orgId)
+                        ||
+                        p.Members.Any(pm => pm.UserId == requesterId && pm.Role != MemberRole.Banned)) 
+                    )
+                );
         
         if(!string.IsNullOrWhiteSpace(request.Search)) query = query.Where(p => p.Name.Contains(request.Search));
 
