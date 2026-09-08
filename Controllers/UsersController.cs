@@ -161,7 +161,7 @@ public class UsersController : ControllerBase
         else
         {
             if(request.Role is not null) query = query.Where(m => m.Role == request.Role);
-            else query = query.Where(m => m.Role != MemberRole.Banned);
+            else query = query.Where(m => m.Role != MemberRole.Banned && m.Role != MemberRole.Invited);
         }
 
         query = request.SortBy switch

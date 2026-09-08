@@ -475,8 +475,18 @@ private async Task<string> CreateUniqueSlug(string name)
             .AsNoTracking()
             .Where(m => m.ProjectId == project.Id);
 
-        if(request.Role is not null && Enum.IsDefined((MemberRole) request.Role)) query = query.Where(m => m.Role == request.Role);
-        else query = query.Where(m => m.Role != MemberRole.Banned && m.Role != MemberRole.Invited);
+        if (request.RoleMin)
+        {
+            if(request.Role == MemberRole.Contributor) query = query.Where(m => m.Role == MemberRole.Contributor || m.Role == MemberRole.Admin || m.Role == MemberRole.Owner);
+            else if(request.Role == MemberRole.Admin) query = query.Where(m => m.Role == MemberRole.Admin || m.Role == MemberRole.Owner);
+            else if(request.Role is not null) query = query.Where(m => m.Role == request.Role);
+            else query = query.Where(m => m.Role != MemberRole.Banned);
+        }
+        else
+        {
+            if(request.Role is not null) query = query.Where(m => m.Role == request.Role);
+            else query = query.Where(m => m.Role != MemberRole.Banned && m.Role != MemberRole.Invited);
+        }
 
         if(!string.IsNullOrWhiteSpace(request.Search)) query = query.Where(m => m.User.Username.Contains(request.Search));
 
