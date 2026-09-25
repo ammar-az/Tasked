@@ -97,25 +97,9 @@ private async Task<string> CreateUniqueSlug(string name)
             return Conflict(e.InnerException?.Message);
         }
 
-        var dto = new ProjectDto()
-        {
-            Id = project.Id,
-            OwnerId = project.OwnerId,
-            OwnerName = user.Username,
-            Name = project.Name,
-            Slug = project.Slug,
-            Description = project.Description,
-            OrgId = project.OrgId,
-            OrgName = user.Org?.Name,
-            IsVisible = project.IsVisible,
-            JoinPolicy = project.JoinPolicy,
-            CreatedAt = project.CreatedAt
-        };
-
         return CreatedAtAction(
             nameof(GetProject), 
-            new { projectId = project.Id }, 
-            dto
+            new { projectSlug = project.Slug } 
         );
     }
 
@@ -322,8 +306,7 @@ private async Task<string> CreateUniqueSlug(string name)
 
         return CreatedAtAction(
             nameof(GetMembers), 
-            new { projectId }, 
-            dto
+            new { projectSlug = project.Slug }
         );
     }
 
@@ -370,20 +353,9 @@ private async Task<string> CreateUniqueSlug(string name)
             return Conflict("There was an error while inviting the user to the project.");
         }
 
-        var dto = new MemberDto()
-        {
-            ProjectId = membership.ProjectId,
-            UserId = membership.UserId,
-            Username = User.Identity?.Name ?? "",
-            ProjectName = project.Name,
-            Role = membership.Role,
-            JoinTime = membership.JoinTime
-        };
-
         return CreatedAtAction(
             nameof(GetMembers), 
-            new { projectId }, 
-            dto
+            new { projectSlug = project.Slug }
         );
     }
 

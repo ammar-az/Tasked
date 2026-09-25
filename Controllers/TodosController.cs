@@ -66,25 +66,9 @@ public class TodosController : ControllerBase
             return Conflict("Task could not be created.");
         }
 
-        var dto = new TodoDto()
-        {
-            Id = todo.Id,
-            ProjectId = todo.ProjectId,
-            ProjectName = membership.Project.Name,
-            ProjectSlug = membership.Project.Slug,
-            Title = todo.Title,
-            Description = todo.Description,
-            Status = todo.Status,
-            CreatedAt = todo.CreatedAt,
-            IssueNo = todo.IssueNo,
-            CreatedBy = todo.CreatedById,
-            CreatedByName = membership.User.Username
-        };
-
         return CreatedAtAction(
-            nameof(GetTodo), 
-            new { todoId = todo.Id }, 
-            dto
+            nameof(GetTodoByNo), 
+            new { projectSlug = membership.Project.Slug, issueNo = todo.IssueNo}
         );
     }
 
