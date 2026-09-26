@@ -179,12 +179,11 @@ public class TodosController : ControllerBase
         return Ok(todo.dto);
     }
 
-    [HttpPatch("{todoId}/assign/{userId}")]
+    [HttpPatch("assign/{todoId}")]
     [Authorize]
-    //Make DTO?
-    public async Task<IActionResult> AssignTodo(Guid todoId, Guid userId)
+    public async Task<IActionResult> AssignTodo(Guid todoId, TodoAssignRequest request)
     {
-        var requesterId = User.GetUserId();
+        if(!request.Unassign && request.AssignId is null) return BadRequest("Must specify user to assign task to.");
 
         var todo = await _db.Todos
             .Where(t => t.Id == todoId)
@@ -195,22 +194,27 @@ public class TodosController : ControllerBase
 
         var membership = await _db.ProjectMembers
             .AsNoTracking()
-            .Where(m => m.UserId == userId && m.ProjectId == todo.ProjectId)
+            .Where(m => m.UserId == request.AssignId && m.ProjectId == todo.ProjectId)
             .Include(m => m.User)
             .Include(m=> m.Project)
             .SingleOrDefaultAsync();
 
         if(membership is null) return NotFound("Cannot assign a task to a user that is not a member of the project");
-
+        
         if(!_auth.CanContribute(membership)) return Conflict("User must be a contributor or higher to be assigned to tasks");
+        
+        var requesterId = User.GetUserId();
 
-        if(requesterId != userId)
+        if(requesterId != request.AssignId)
         {
             var admin = await _auth.AdminPermissions(membership.Project, requesterId);
             if(!admin) return Forbid("Only admins can assign tasks to other users.");
         }
 
-        todo.AssignedId = userId;
+
+        if(request.Unassign) todo.AssignedId = null;
+        else todo.AssignedId = request.AssignId;
+
         try
         {
             await _db.SaveChangesAsync();
@@ -231,7 +235,7 @@ public class TodosController : ControllerBase
             Status = todo.Status,
             CreatedAt = todo.CreatedAt,
             Assigned = todo.AssignedId,
-            AssignedName = membership.User.Username,
+            AssignedName = request.Unassign ? null : membership.User.Username,
             IssueNo = todo.IssueNo,
             CreatedBy = todo.CreatedById,
             CreatedByName = todo.CreatedBy?.Username

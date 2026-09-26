@@ -34,6 +34,12 @@ public record TodoUpdateRequest
     required public TodoStatus Status {get; init;}
 }
 
+public record TodoAssignRequest
+{
+    required public bool Unassign  {get; init;} = false;
+    public Guid? AssignId {get; init;}
+}
+
 public record GetManyTodosRequest
 {
     public string? Search {get; init;}
