@@ -97,10 +97,7 @@ private async Task<string> CreateUniqueSlug(string name)
             return Conflict("Project creation failed.");
         }
 
-        return CreatedAtAction(
-            nameof(GetProject), 
-            new { projectSlug = project.Slug } 
-        );
+        return StatusCode(StatusCodes.Status201Created, project.Slug);
     }
 
     [HttpGet("{projectSlug}")]
@@ -304,10 +301,7 @@ private async Task<string> CreateUniqueSlug(string name)
             JoinTime = membership.JoinTime
         };
 
-        return CreatedAtAction(
-            nameof(GetMembers), 
-            new { projectSlug = project.Slug }
-        );
+        return StatusCode(StatusCodes.Status201Created);
     }
 
     [HttpPost("{projectId}/invite/{userId}")]
@@ -353,10 +347,7 @@ private async Task<string> CreateUniqueSlug(string name)
             return Conflict("There was an error while inviting the user to the project.");
         }
 
-        return CreatedAtAction(
-            nameof(GetMembers), 
-            new { projectSlug = project.Slug }
-        );
+        return StatusCode(StatusCodes.Status201Created);
     }
 
     [HttpDelete("{projectId}/reject")]

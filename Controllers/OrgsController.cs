@@ -39,10 +39,7 @@ public class OrgsController : ControllerBase
             return Conflict("Could not create this organization");
         }
 
-        return CreatedAtAction(
-            nameof(GetOrgByName), 
-            new { orgName = org.Name }
-        );
+        return StatusCode(StatusCodes.Status201Created, org.Name);
     }
 
     [HttpGet("id/{orgId}")]
