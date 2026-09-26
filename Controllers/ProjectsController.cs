@@ -62,7 +62,7 @@ private async Task<string> CreateUniqueSlug(string name)
             .Include(u => u.Org)
             .SingleOrDefaultAsync();
 
-        if(user is null) return Conflict();
+        if(user is null) return Conflict("Could not get user information. Critical data integrity issue, this should never occur.");
         
         var project = new Project
         {
@@ -92,9 +92,9 @@ private async Task<string> CreateUniqueSlug(string name)
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException)
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("Project creation failed.");
         }
 
         return CreatedAtAction(
@@ -184,7 +184,7 @@ private async Task<string> CreateUniqueSlug(string name)
         if(project is null) return NotFound();
 
         var admin = await _auth.AdminPermissions(project, userId);
-        if(!admin) return Forbid();
+        if(!admin) return Forbid("Only admins are authorized to edit projects.");
 
         if(request.Name != "") project.Name = request.Name ?? project.Name;
 
@@ -198,7 +198,7 @@ private async Task<string> CreateUniqueSlug(string name)
         }
         catch(DbUpdateException)
         {
-            return Conflict("An error occurred and the project could not be edited.");
+            return Conflict("An unknown error occurred and the project could not be edited. Changes have not been applied.");
         }
 
         var dto = new ProjectDto()
@@ -254,7 +254,7 @@ private async Task<string> CreateUniqueSlug(string name)
 
         var permit = await _auth.CanJoin(project, userId);
 
-        if(!permit) return Forbid();
+        if(!permit) return Forbid("Cannot join this project.");
 
         var preexisting = await _db.ProjectMembers
             .Where(m => m.ProjectId == projectId && m.UserId == userId)
@@ -325,7 +325,7 @@ private async Task<string> CreateUniqueSlug(string name)
 
         var admin = await _auth.AdminPermissions(project, requesterId);
 
-        if(!admin) return Forbid();
+        if(!admin) return Forbid("Only admins can issue project invites.");
 
         var preexisting = await _db.ProjectMembers
             .AsNoTracking()
@@ -420,9 +420,9 @@ private async Task<string> CreateUniqueSlug(string name)
         {
             await _db.SaveChangesAsync();
         }
-        catch(DbUpdateException e)
+        catch(DbUpdateException )
         {
-            return Conflict(e.InnerException?.Message);
+            return Conflict("The server encountered an unexpected error while transferring the project.");
         }
 
         return NoContent();
@@ -619,7 +619,7 @@ private async Task<string> CreateUniqueSlug(string name)
 
         var admin = await _auth.AdminPermissions(project, issuerId);
 
-        if(!admin) return Forbid();
+        if(!admin) return Forbid("Only admins can ban users.");
         
         var member = await _db.ProjectMembers
             .Where(m => m.ProjectId == projectId && m.UserId == userId)
@@ -634,11 +634,11 @@ private async Task<string> CreateUniqueSlug(string name)
                 })
             .SingleOrDefaultAsync();
 
-        if(member is null) return NotFound("No such membership");
+        if(member is null) return NotFound("No such project member exists.");
 
-        if(member.Role == MemberRole.Owner) return Conflict("Cannot ban owner");
+        if(member.Role == MemberRole.Owner) return Conflict("Cannot ban the owner of the project.");
 
-        if(member.Role == MemberRole.Admin && !_auth.OwnsProject(project, issuerId)) return Forbid();
+        if(member.Role == MemberRole.Admin && !_auth.OwnsProject(project, issuerId)) return Forbid("Only an owner can ban an admin.");
 
         member.self.Role = MemberRole.Banned;
 
@@ -655,7 +655,7 @@ private async Task<string> CreateUniqueSlug(string name)
         }
         catch(DbUpdateException)
         {
-            return Conflict("An error occurred while managing the project member");
+            return Conflict("An error occurred while banning the project member");
         }
 
         var dto = new MemberDto()
@@ -692,7 +692,7 @@ private async Task<string> CreateUniqueSlug(string name)
 
         var admin = await _auth.AdminPermissions(project, requesterId);
 
-        if(!admin) return Forbid();
+        if(!admin) return Forbid("Only admins can change member roles.");
 
         var member = await _db.ProjectMembers
             .Where(m => m.ProjectId == projectId && m.UserId == request.User)
@@ -708,13 +708,13 @@ private async Task<string> CreateUniqueSlug(string name)
                 })
             .SingleOrDefaultAsync();
 
-        if(member is null) return NotFound("No such membership");
+        if(member is null) return NotFound("No such project member exists.");
 
         if(member.Role == MemberRole.Owner) return Conflict("Cannot demote owner, ownership must be transferred");
 
         if(member.Role == request.Role) return NoContent();
 
-        if((member.Role == MemberRole.Admin || request.Role == MemberRole.Admin) && !_auth.OwnsProject(project, requesterId)) return Forbid();
+        if((member.Role == MemberRole.Admin || request.Role == MemberRole.Admin) && !_auth.OwnsProject(project, requesterId)) return Forbid("Only an owner can promote/demote admins.");
 
         if(request.Role == MemberRole.Viewer)
         {
@@ -734,7 +734,7 @@ private async Task<string> CreateUniqueSlug(string name)
         }
         catch(DbUpdateException)
         {
-            return Conflict("An error occurred while managing the project member");
+            return Conflict("An error occurred while changing the project member's role.");
         }
 
         var dto = new MemberDto()
@@ -764,7 +764,7 @@ private async Task<string> CreateUniqueSlug(string name)
 
         if(project is null) return NotFound();
 
-        if(!_auth.OwnsProject(project, userId)) return Forbid();
+        if(!_auth.OwnsProject(project, userId)) return Forbid("Only the owner can move a project under an organization's umbrella.");
 
         if(project.OrgId is not null) return NoContent();
         
@@ -815,7 +815,7 @@ private async Task<string> CreateUniqueSlug(string name)
 
         if(project.OrgId is null) return NoContent();
 
-        if (!_auth.OwnsProject(project, userId)) return Forbid();
+        if (!_auth.OwnsProject(project, userId)) return Forbid("Only the owner can remove a project from under an organization's umbrella.");
 
         project.OrgId = null;
 
@@ -857,7 +857,7 @@ private async Task<string> CreateUniqueSlug(string name)
 
         if(project is null) return NotFound();
 
-        if (!_auth.OwnsProject(project, requesterId)) return Forbid();
+        if (!_auth.OwnsProject(project, requesterId)) return Forbid("Cannot transfer ownership of a project you do not own.");
 
         if(project.OwnerId == userId) return NoContent();
 

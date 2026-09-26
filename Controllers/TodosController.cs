@@ -37,7 +37,9 @@ public class TodosController : ControllerBase
             .Include(m=> m.Project)
             .SingleOrDefaultAsync();
 
-        if(membership is null || !_auth.CanContribute(membership)) return Forbid();
+        if(membership is null) return NotFound("This project does not exist or you are not a member of it.");
+
+        if(!_auth.CanContribute(membership)) return Forbid("You cannot contribute to this project.");
 
         var todo = new Todo
         {
@@ -89,7 +91,8 @@ public class TodosController : ControllerBase
             .Where(m => m.UserId == requesterId && m.ProjectId == todo.ProjectId)
             .SingleOrDefaultAsync();
 
-        if(membership is null || (todo.CreatedById != requesterId && membership.Role != MemberRole.Owner && membership.Role != MemberRole.Admin)) return Forbid();
+        if(membership is null) return NotFound("This project does not exist or you are not a member of it.");
+        if(todo.CreatedById != requesterId && membership.Role != MemberRole.Owner && membership.Role != MemberRole.Admin) return Forbid("You cannot contribute to this project.");
         
         _db.Todos.Remove(todo);
         
@@ -153,8 +156,9 @@ public class TodosController : ControllerBase
         var todo = await _db.Todos
             .AsNoTracking()
             .Where(t => t.Project.Slug == projectSlug && t.IssueNo == issueNo)
-            .Select(t => 
-                new TodoDto()
+            .Select(t => new {
+                parent = t.Project,
+                dto = new TodoDto()
                 {
                     Id = t.Id,
                     ProjectId = t.ProjectId,
@@ -169,18 +173,13 @@ public class TodosController : ControllerBase
                     IssueNo = t.IssueNo,
                     CreatedBy = t.CreatedById,
                     CreatedByName = t.CreatedBy == null ? null : t.CreatedBy.Username
-                }).SingleOrDefaultAsync();
+                }}).SingleOrDefaultAsync();
 
         if(todo is null) return NotFound();
-        
-        var parent = await _db.Projects
-            .AsNoTracking()
-            .Where(p => p.Id == todo.ProjectId)
-            .FirstOrDefaultAsync();
 
-        if(parent is null || !await _auth.CanView(parent, requesterId)) return NotFound();
+        if(todo.parent is null || !await _auth.CanView(todo.parent, requesterId)) return NotFound();
 
-        return Ok(todo);
+        return Ok(todo.dto);
     }
 
     [HttpPatch("{todoId}/assign/{userId}")]
@@ -211,7 +210,7 @@ public class TodosController : ControllerBase
         if(requesterId != userId)
         {
             var admin = await _auth.AdminPermissions(membership.Project, requesterId);
-            if(!admin) return Forbid();
+            if(!admin) return Forbid("Only admins can assign tasks to other users.");
         }
 
         todo.AssignedId = userId;
@@ -334,7 +333,7 @@ public class TodosController : ControllerBase
             .Where(m => m.UserId == requesterId && m.ProjectId == todo.ProjectId)
             .SingleOrDefaultAsync();
 
-        if(membership is null || !_auth.CanContribute(membership)) return Forbid();
+        if(membership is null || !_auth.CanContribute(membership)) return Forbid("You cannot contribute to this project.");
         
         if(request.Title != "") todo.Title = request.Title ?? todo.Title;        
 
