@@ -34,8 +34,10 @@ public class ProjectService(ApplicationDbContext db)
         return false;
     }
 
-    public async Task<bool> AdminPermissions(Project project, Guid userId)
+    public async Task<bool> AdminPermissions(Project project, Guid? userId)
     {
+        if(userId == null) return false;
+        
         return await _db.ProjectMembers.AnyAsync(m =>
             m.ProjectId == project.Id &&
             m.UserId == userId &&

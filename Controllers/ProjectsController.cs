@@ -434,6 +434,8 @@ private async Task<string> CreateUniqueSlug(string name)
 
         if(!await _auth.CanView(project, requesterId)) return NotFound();
 
+        if((request.Role == MemberRole.Banned || request.Role == MemberRole.Invited) && !await _auth.AdminPermissions(project, requesterId)) return Forbid();
+        
         var query = _db.ProjectMembers
             .AsNoTracking()
             .Where(m => m.ProjectId == project.Id);
@@ -443,7 +445,7 @@ private async Task<string> CreateUniqueSlug(string name)
             if(request.Role == MemberRole.Contributor) query = query.Where(m => m.Role == MemberRole.Contributor || m.Role == MemberRole.Admin || m.Role == MemberRole.Owner);
             else if(request.Role == MemberRole.Admin) query = query.Where(m => m.Role == MemberRole.Admin || m.Role == MemberRole.Owner);
             else if(request.Role is not null) query = query.Where(m => m.Role == request.Role);
-            else query = query.Where(m => m.Role != MemberRole.Banned);
+            else query = query.Where(m => m.Role != MemberRole.Banned && m.Role != MemberRole.Invited);
         }
         else
         {

@@ -1,12 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Tasked.Data;
-using Tasked.Entities;
 using Tasked.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Tasked.Services;
 using Tasked.Enums;
-using Azure;
 
 namespace Tasked.Controllers;
 
@@ -81,19 +79,17 @@ public class UsersController : ControllerBase
     {
         var username = request.Username;
 
-        if(username is null) return BadRequest("No fields to update");
+        if(string.IsNullOrWhiteSpace(username)) return BadRequest("Invalid username");
     
         var userId = User.GetUserId();
-        
-        if(username == "") return BadRequest("Invalid username");
 
         var user = await _db.Users
             .Where(u => u.Id == userId)
             .SingleOrDefaultAsync();
 
-        if(user is null)return NotFound();
+        if(user is null) return NotFound();
 
-        user.Username = username ?? user.Username;
+        user.Username = username;
         _db.Users.Update(user);
 
         try
@@ -102,7 +98,7 @@ public class UsersController : ControllerBase
         }
         catch(DbUpdateException)
         {
-            return Conflict("An error occured while trying to update account details");
+            return Conflict("An error occured while trying to change your username.");
         }
         
         var dto = new UserDto()
@@ -117,7 +113,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet("{userId}/projects")]
-    public async Task<ActionResult> GetUserProjects(Guid userId , [FromQuery] MemberOverviewRequest request)
+    public async Task<ActionResult> GetUserProjects(Guid userId, [FromQuery] MemberOverviewRequest request)
     {
         var requesterId = User.GetNullableUserId();
 
