@@ -10,5 +10,5 @@ public record UserDto
 
 public record UserUpdateRequest
 {
-    public string? Username {get; init;}
+    required public string Username {get; init;}
 }

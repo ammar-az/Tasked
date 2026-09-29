@@ -65,11 +65,11 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
 
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == dto.Username);
         if (user == null)
-            return Unauthorized("Invalid email or password.");
+            return Unauthorized("An account with this username does not exist.");
 
         var result = _hasher.VerifyHashedPassword(user, user.Password, dto.Password);
         if (result == PasswordVerificationResult.Failed)
-            return Unauthorized("Invalid email or password.");
+            return Unauthorized("Incorrect password.");
 
         return await NewSession(user);
     }

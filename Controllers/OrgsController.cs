@@ -39,17 +39,7 @@ public class OrgsController : ControllerBase
             return Conflict("Could not create this organization");
         }
 
-        var dto = new OrgDto()
-        {
-            Id = org.Id,
-            Name = org.Name
-        };
-
-        return CreatedAtAction(
-            nameof(GetOrgById), 
-            new { orgId = org.Id }, 
-            dto
-        );
+        return StatusCode(StatusCodes.Status201Created, org.Name);
     }
 
     [HttpGet("id/{orgId}")]

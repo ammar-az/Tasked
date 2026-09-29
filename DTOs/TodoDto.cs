@@ -29,11 +29,15 @@ public record TodoRequest
 
 public record TodoUpdateRequest
 {
-    public string? Title {get; init;}
+    required public string Title {get; init;}
     public string? Description {get; init;}
-    public TodoStatus? Status {get; init;}
-    public Guid? Assigned {get; init;}
-    public bool Unassign {get; init;} = false;
+    required public TodoStatus Status {get; init;}
+}
+
+public record TodoAssignRequest
+{
+    required public bool Unassign  {get; init;} = false;
+    public Guid? AssignId {get; init;}
 }
 
 public record GetManyTodosRequest

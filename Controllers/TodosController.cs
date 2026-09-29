@@ -37,7 +37,9 @@ public class TodosController : ControllerBase
             .Include(m=> m.Project)
             .SingleOrDefaultAsync();
 
-        if(membership is null || !_auth.CanContribute(membership)) return Forbid();
+        if(membership is null) return NotFound("This project does not exist or you are not a member of it.");
+
+        if(!_auth.CanContribute(membership)) return Forbid("You cannot contribute to this project.");
 
         var todo = new Todo
         {
@@ -66,26 +68,7 @@ public class TodosController : ControllerBase
             return Conflict("Task could not be created.");
         }
 
-        var dto = new TodoDto()
-        {
-            Id = todo.Id,
-            ProjectId = todo.ProjectId,
-            ProjectName = membership.Project.Name,
-            ProjectSlug = membership.Project.Slug,
-            Title = todo.Title,
-            Description = todo.Description,
-            Status = todo.Status,
-            CreatedAt = todo.CreatedAt,
-            IssueNo = todo.IssueNo,
-            CreatedBy = todo.CreatedById,
-            CreatedByName = membership.User.Username
-        };
-
-        return CreatedAtAction(
-            nameof(GetTodo), 
-            new { todoId = todo.Id }, 
-            dto
-        );
+        return StatusCode(StatusCodes.Status201Created, todo.IssueNo);
     }
 
     [HttpDelete("{todoId}")]
@@ -105,7 +88,8 @@ public class TodosController : ControllerBase
             .Where(m => m.UserId == requesterId && m.ProjectId == todo.ProjectId)
             .SingleOrDefaultAsync();
 
-        if(membership is null || (todo.CreatedById != requesterId && membership.Role != MemberRole.Owner && membership.Role != MemberRole.Admin)) return Forbid();
+        if(membership is null) return NotFound("This project does not exist or you are not a member of it.");
+        if(todo.CreatedById != requesterId && membership.Role != MemberRole.Owner && membership.Role != MemberRole.Admin) return Forbid("You cannot contribute to this project.");
         
         _db.Todos.Remove(todo);
         
@@ -169,8 +153,9 @@ public class TodosController : ControllerBase
         var todo = await _db.Todos
             .AsNoTracking()
             .Where(t => t.Project.Slug == projectSlug && t.IssueNo == issueNo)
-            .Select(t => 
-                new TodoDto()
+            .Select(t => new {
+                parent = t.Project,
+                dto = new TodoDto()
                 {
                     Id = t.Id,
                     ProjectId = t.ProjectId,
@@ -185,26 +170,20 @@ public class TodosController : ControllerBase
                     IssueNo = t.IssueNo,
                     CreatedBy = t.CreatedById,
                     CreatedByName = t.CreatedBy == null ? null : t.CreatedBy.Username
-                }).SingleOrDefaultAsync();
+                }}).SingleOrDefaultAsync();
 
         if(todo is null) return NotFound();
-        
-        var parent = await _db.Projects
-            .AsNoTracking()
-            .Where(p => p.Id == todo.ProjectId)
-            .FirstOrDefaultAsync();
 
-        if(parent is null || !await _auth.CanView(parent, requesterId)) return NotFound();
+        if(todo.parent is null || !await _auth.CanView(todo.parent, requesterId)) return NotFound();
 
-        return Ok(todo);
+        return Ok(todo.dto);
     }
 
-    [HttpPatch("{todoId}/assign/{userId}")]
+    [HttpPatch("assign/{todoId}")]
     [Authorize]
-    //Make DTO?
-    public async Task<IActionResult> AssignTodo(Guid todoId, Guid userId)
+    public async Task<IActionResult> AssignTodo(Guid todoId, TodoAssignRequest request)
     {
-        var requesterId = User.GetUserId();
+        if(!request.Unassign && request.AssignId is null) return BadRequest("Must specify user to assign task to.");
 
         var todo = await _db.Todos
             .Where(t => t.Id == todoId)
@@ -215,22 +194,27 @@ public class TodosController : ControllerBase
 
         var membership = await _db.ProjectMembers
             .AsNoTracking()
-            .Where(m => m.UserId == userId && m.ProjectId == todo.ProjectId)
+            .Where(m => m.UserId == request.AssignId && m.ProjectId == todo.ProjectId)
             .Include(m => m.User)
             .Include(m=> m.Project)
             .SingleOrDefaultAsync();
 
         if(membership is null) return NotFound("Cannot assign a task to a user that is not a member of the project");
-
+        
         if(!_auth.CanContribute(membership)) return Conflict("User must be a contributor or higher to be assigned to tasks");
+        
+        var requesterId = User.GetUserId();
 
-        if(requesterId != userId)
+        if(requesterId != request.AssignId)
         {
             var admin = await _auth.AdminPermissions(membership.Project, requesterId);
-            if(!admin) return Forbid();
+            if(!admin) return Forbid("Only admins can assign tasks to other users.");
         }
 
-        todo.AssignedId = userId;
+
+        if(request.Unassign) todo.AssignedId = null;
+        else todo.AssignedId = request.AssignId;
+
         try
         {
             await _db.SaveChangesAsync();
@@ -251,7 +235,7 @@ public class TodosController : ControllerBase
             Status = todo.Status,
             CreatedAt = todo.CreatedAt,
             Assigned = todo.AssignedId,
-            AssignedName = membership.User.Username,
+            AssignedName = request.Unassign ? null : membership.User.Username,
             IssueNo = todo.IssueNo,
             CreatedBy = todo.CreatedById,
             CreatedByName = todo.CreatedBy?.Username
@@ -331,9 +315,14 @@ public class TodosController : ControllerBase
     {
         var requesterId = User.GetUserId();
 
-        if((request.Title is null || request.Title == "") && request.Description is null && (request.Status is null || !Enum.IsDefined((TodoStatus) request.Status)) && request.Assigned is null && !request.Unassign)
+        if(string.IsNullOrWhiteSpace(request.Title))
         {
-            return BadRequest("Must update at least one field.");
+            return BadRequest("Title cannot be empty.");
+        }
+
+        if(!Enum.IsDefined(request.Status))
+        {
+            return BadRequest("Invalid status.");
         }
 
         var todo = await _db.Todos
@@ -345,26 +334,27 @@ public class TodosController : ControllerBase
 
         if(todo is null) return NotFound();
 
+        if(request.Title == todo.Title && request.Description == todo.Description && request.Status == todo.Status)
+        {
+            return BadRequest("Must update at least one field.");
+        }
+
         var membership = await _db.ProjectMembers
             .AsNoTracking()
             .Where(m => m.UserId == requesterId && m.ProjectId == todo.ProjectId)
             .SingleOrDefaultAsync();
 
-        if(membership is null || !_auth.CanContribute(membership)) return Forbid();
+        if(membership is null || !_auth.CanContribute(membership)) return Forbid("You cannot contribute to this project.");
         
-        if(request.Title != "") todo.Title = request.Title ?? todo.Title;        
+        todo.Title = request.Title;        
+        todo.Description = request.Description;
+        todo.Status = request.Status;
 
-        todo.Description = request.Description ?? todo.Description;
-
-        if(request.Status is not null && Enum.IsDefined((TodoStatus)request.Status))
+        if(request.Status == TodoStatus.Archived || request.Status == TodoStatus.Completed)
         {
-            todo.Status = (TodoStatus) request.Status;
-            if(request.Status == TodoStatus.Archived || request.Status == TodoStatus.Completed)
-            {
-                todo.AssignedId = null;
-                todo.Assigned = null;
-            }
-        } 
+            todo.AssignedId = null;
+            todo.Assigned = null;
+        }
 
         try
         {
@@ -374,12 +364,13 @@ public class TodosController : ControllerBase
         {
             return Conflict("An error occured while updating the task");
         }
+
         var dto = new TodoDto()
         {
             Id = todo.Id,
             ProjectId = todo.ProjectId,
             ProjectName = todo.Project.Name,
-            ProjectSlug = membership.Project.Slug,
+            ProjectSlug = todo.Project.Slug,
             Title = todo.Title,
             Description = todo.Description,
             Status = todo.Status,
