@@ -100,6 +100,83 @@ private async Task<string> CreateUniqueSlug(string name)
         return StatusCode(StatusCodes.Status201Created, project.Slug);
     }
 
+    [HttpPost("demo")]
+    [Authorize]
+    public async Task<IActionResult> CreateDemo()
+    {
+        var userId = User.GetUserId();
+
+        var user = await _db.Users
+            .Where(u => u.Id == userId)
+            .SingleOrDefaultAsync();
+
+        if(user is null) return Conflict();
+
+        var existing = await _db.Projects
+            .Where(p => p.Slug == "explore-tasked-"+userId)
+            .SingleOrDefaultAsync();
+
+        if(existing is not null)
+        {
+            var projectMember = new ProjectMember
+            {
+                ProjectId = existing.Id,
+                UserId = userId,
+                Role = MemberRole.Contributor,
+                JoinTime = DateTime.UtcNow
+            };
+            
+            _db.ProjectMembers.Add(projectMember);
+        }
+        else
+        {
+            var project = new Project
+            {
+                Id = Guid.NewGuid(),
+                OrgId = null,
+                OwnerId = new Guid("3dd90e11-625d-480a-94ae-78e3f30b4e3d"),
+                Name = user.Username+"'s Tasked Exploration Guide",
+                Slug = "explore-tasked-"+userId,
+                Description = "zzz",
+                IsVisible = false,
+                JoinPolicy = JoinPolicy.Closed,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var guide = new ProjectMember
+            {
+                ProjectId = project.Id,
+                UserId = project.OwnerId,
+                Role = MemberRole.Owner,
+                JoinTime = DateTime.UnixEpoch
+            };
+
+            var projectMember = new ProjectMember
+            {
+                ProjectId = project.Id,
+                UserId = userId,
+                Role = MemberRole.Contributor,
+                JoinTime = DateTime.UtcNow
+            };
+
+            _db.Projects.Add(project);
+            _db.ProjectMembers.Add(guide);
+            _db.ProjectMembers.Add(projectMember);
+        }
+        
+        
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch(DbUpdateException)
+        {
+            return Conflict("Guide creation failed.");
+        }
+
+        return StatusCode(StatusCodes.Status201Created);
+    }
+
     [HttpGet("{projectSlug}")]
     public async Task<ActionResult<ProjectDto>> GetProject(string projectSlug)
     {

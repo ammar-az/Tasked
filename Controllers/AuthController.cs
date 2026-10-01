@@ -9,6 +9,7 @@ using Tasked.Jwt;
 using Tasked.Services;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Tasked.Controllers;
 
@@ -128,6 +129,7 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
     }
 
     [HttpGet("me")]
+    [Authorize]
     public async Task<IActionResult> GetCurrentUser()
     {
         var userId = User.GetUserId();
