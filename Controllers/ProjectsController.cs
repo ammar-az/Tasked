@@ -134,7 +134,7 @@ private async Task<string> CreateUniqueSlug(string name)
             {
                 Id = Guid.NewGuid(),
                 OrgId = null,
-                OwnerId = new Guid("3dd90e11-625d-480a-94ae-78e3f30b4e3d"),
+                OwnerId = new Guid("abe3d8ca-f90d-4ec7-802c-4aeb2a319b40"),
                 Name = user.Username+"'s Tasked Exploration Guide",
                 Slug = "explore-tasked-"+userId,
                 Description = "A guided project designed to help new users discover the features available in Tasked. This project is a unique instance available to you and invisible to other users. Going through the 10 tasks in this project will help familiarize users with Tasked and explain its features.",
