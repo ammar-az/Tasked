@@ -216,7 +216,7 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
         {
             HttpOnly = true,
             Secure = false,
-            SameSite = SameSiteMode.Lax,
+            SameSite = SameSiteMode.None,
             Expires = DateTimeOffset.UtcNow.AddDays(14),
             Path = "api/auth"
         };
