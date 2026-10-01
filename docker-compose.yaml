@@ -6,17 +6,18 @@ services:
     depends_on:
       - db
     environment:
-      ConnectionStrings__DefaultConnection: Host=db;Port=5432;Database=tasked;Username=postgres;Password=postgres
+      ConnectionStrings__DefaultConnection: Server=db,1433;Database=${TASKED_DB};User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True
+      Jwt__Key: ${JWT_KEY}
 
   db:
-    image: postgres
+    image: mcr.microsoft.com/mssql/server:2025-latest
     environment:
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: tasked
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
     ports:
-      - "5432:5432"
+      - "1433:1433"
     volumes:
-      - pgdata:/var/lib/postgresql
+      - sqldata:/var/opt/mssql
 
 volumes:
-  pgdata:      
+  sqldata:
