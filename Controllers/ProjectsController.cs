@@ -100,6 +100,115 @@ private async Task<string> CreateUniqueSlug(string name)
         return StatusCode(StatusCodes.Status201Created, project.Slug);
     }
 
+    [HttpPost("demo")]
+    [Authorize]
+    public async Task<IActionResult> CreateDemo()
+    {
+        var userId = User.GetUserId();
+
+        var user = await _db.Users
+            .Where(u => u.Id == userId)
+            .SingleOrDefaultAsync();
+
+        if(user is null) return Conflict();
+
+        var existing = await _db.Projects
+            .Where(p => p.Slug == "explore-tasked-"+userId)
+            .SingleOrDefaultAsync();
+
+        if(existing is not null)
+        {
+            var projectMember = new ProjectMember
+            {
+                ProjectId = existing.Id,
+                UserId = userId,
+                Role = MemberRole.Contributor,
+                JoinTime = DateTime.UtcNow
+            };
+
+            _db.ProjectMembers.Add(projectMember);
+        }
+        else
+        {
+            var project = new Project
+            {
+                Id = Guid.NewGuid(),
+                OrgId = null,
+                OwnerId = new Guid("3dd90e11-625d-480a-94ae-78e3f30b4e3d"),
+                Name = user.Username+"'s Tasked Exploration Guide",
+                Slug = "explore-tasked-"+userId,
+                Description = "A guided project designed to help new users discover the features available in Tasked. This project is a unique instance available to you and invisible to other users. Going through the 10 tasks in this project will help familiarize users with Tasked and explain its features.",
+                IsVisible = false,
+                JoinPolicy = JoinPolicy.Closed,
+                CreatedAt = DateTime.UtcNow,
+                IssueCount = 10
+            };
+
+            var guide = new ProjectMember
+            {
+                ProjectId = project.Id,
+                UserId = project.OwnerId,
+                Role = MemberRole.Owner,
+                JoinTime = DateTime.UnixEpoch
+            };
+
+            var projectMember = new ProjectMember
+            {
+                ProjectId = project.Id,
+                UserId = userId,
+                Role = MemberRole.Contributor,
+                JoinTime = DateTime.UtcNow
+            };
+
+            _db.Projects.Add(project);
+            _db.ProjectMembers.Add(guide);
+            _db.ProjectMembers.Add(projectMember);
+
+            Todo CreateTodo(int issueNo, string title, string description)
+            {
+                return new Todo
+                    {
+                        ProjectId = project.Id,
+                        Title = title,
+                        Description = description,
+                        Status = TodoStatus.Backlog,
+                        CreatedAt = DateTime.UtcNow,
+                        CreatedById = project.OwnerId,
+                        AssignedId = userId,
+                        IssueNo = issueNo,
+                    };
+            }
+
+            var todos = new[]
+            {
+                CreateTodo(1, "Familiarize yourself with projects", "Projects are the core of Tasked, so getting acquainted with them is the best way to make the most out of it. The projects page is made up of an information panel with the name and description of the project, a navigation panel, a central hub for searching for and viewing tasks, and a panel for displaying information on the selected task. Click on the next task to continue exploring Tasked."),
+                CreateTodo(2, "Visit your account page", "The account page allows you to change your username and check out projects you're a part of. Click your username on the navigation bar or go to localhost:5173/myaccount to check it out. You can return here by visiting localhost:5173/demo or finding this project listed under your project memberships on your account page."),
+                CreateTodo(3, "Check out the members of this project", "After returning to this project check out the member list by pressing the Members button in the navigation panel. Notice how tasked-guide, the creator of this project, has a different role than you. In Tasked projects, users can have the roles Owner, Admin, Contributor, and Viewer. Owners can promote members to admin and do anything admins can. Admins can assign tasks to users, send invites, and demote or ban users. Contributors can create or edit tasks, while Viewers can only look at a project until an admin promotes them."),
+                CreateTodo(4, "Take a closer look at a task", "While you can view tasks on the main project page, you can also take a closer look at a specific task. Try pressing \'Open Task\' to check out this task."),
+                CreateTodo(5, "EDIT A TAKS", "Open this task and press the pencil icon to start editing it. Fix the title and save your changes. You can also change the task's status or this description."),
+                CreateTodo(6, "Create a new task", "Now that you\'ve edited a task, try creating a completely new one. Press the \'New Task\' button to get started."),
+                CreateTodo(7, "Visit the Orgs page", "The orgs page is where you can find the organizations available on Tasked and their members. Projects can be registered under an organization to restrict who can join or view the project, or simply to keep track of them. As Tasked is only a proof of concept, all users can freely join or leave any organization. Check out the \'Tasked Team\' organization's page to look at its members and projects. If you join, you might be able to see some previously hidden projects too."),
+                CreateTodo(8, "Create a project", "You\'re ready to create a project of your own. Press the \'Create Project\' button on the navigation bar or head to localhost:5173/create to go to the project creation page. Don\'t worry about the options too much, they can be changed later."),
+                CreateTodo(9, "Edit your project's settings", "You might have noticed that the project you created has a Settings button where this one had the option to leave. Check out the settings page and try making some changes. Admins can change settings as well, but only owners can add new admins, register their project to an organization, or delete the project. Owners cannot leave a project either, they have to transfer ownership or delete the project."),
+                CreateTodo(10, "Invite tasked-guide to your project", "While you checked out your own account page earlier, now try visiting another user\'s account page. Click tasked-guide on the members page or one of the tasks created by it to view the account. Much like on the account page the projects a user owns or has joined are visible, but rather than a name change button there will be an invite button. Try inviting tasked-guide to your new project and then visit the members page. You should notice some admin only options and information that weren't visible here.")
+            };
+
+            _db.Todos.AddRange(todos);
+        }
+        
+        
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch(DbUpdateException)
+        {
+            return Conflict("Guide creation failed.");
+        }
+
+        return StatusCode(StatusCodes.Status201Created);
+    }
+
     [HttpGet("{projectSlug}")]
     public async Task<ActionResult<ProjectDto>> GetProject(string projectSlug)
     {
