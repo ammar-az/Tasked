@@ -24,7 +24,25 @@ public class ApplicationDbContext : DbContext
             .HasOne(t => t.CreatedBy)
             .WithMany(u => u.CreatedTodos)
             .HasForeignKey(t => t.CreatedById)
-            .OnDelete(DeleteBehavior.SetNull);
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<ProjectMember>()
+            .HasOne(pm => pm.Project)
+            .WithMany(p => p.Members)
+            .HasForeignKey(pm => pm.ProjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ProjectMember>()
+            .HasOne(pm => pm.User)
+            .WithMany()
+            .HasForeignKey(pm => pm.UserId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Project>()
+            .HasOne(p => p.Owner)
+            .WithMany(u => u.OwnedProjects)
+            .HasForeignKey(p => p.OwnerId)
+            .OnDelete(DeleteBehavior.NoAction);
     }
     
     public DbSet<Organization> Organizations => Set<Organization>();

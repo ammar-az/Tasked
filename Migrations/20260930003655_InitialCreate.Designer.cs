@@ -2,9 +2,9 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Tasked.Data;
 
 #nullable disable
@@ -12,7 +12,7 @@ using Tasked.Data;
 namespace Tasked.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260808000437_InitialCreate")]
+    [Migration("20260930003655_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -21,20 +21,20 @@ namespace Tasked.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasAnnotation("ProductVersion", "10.0.9")
-                .HasAnnotation("Relational:MaxIdentifierLength", 63);
+                .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
-            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
             modelBuilder.Entity("Tasked.Entities.Organization", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
+                        .HasColumnType("uniqueidentifier")
                         .HasColumnName("id");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasColumnType("nvarchar(450)")
                         .HasColumnName("name");
 
                     b.HasKey("Id")
@@ -51,45 +51,45 @@ namespace Tasked.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
+                        .HasColumnType("uniqueidentifier")
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime2")
                         .HasColumnName("created_at");
 
                     b.Property<string>("Description")
-                        .HasColumnType("text")
+                        .HasColumnType("nvarchar(max)")
                         .HasColumnName("description");
 
                     b.Property<bool>("IsVisible")
-                        .HasColumnType("boolean")
+                        .HasColumnType("bit")
                         .HasColumnName("is_visible");
 
                     b.Property<int>("IssueCount")
-                        .HasColumnType("integer")
+                        .HasColumnType("int")
                         .HasColumnName("issue_count");
 
                     b.Property<int>("JoinPolicy")
-                        .HasColumnType("integer")
+                        .HasColumnType("int")
                         .HasColumnName("join_policy");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasColumnType("nvarchar(450)")
                         .HasColumnName("name");
 
                     b.Property<Guid?>("OrgId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("uniqueidentifier")
                         .HasColumnName("org_id");
 
                     b.Property<Guid>("OwnerId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("uniqueidentifier")
                         .HasColumnName("owner_id");
 
                     b.Property<string>("Slug")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasColumnType("nvarchar(450)")
                         .HasColumnName("slug");
 
                     b.HasKey("Id")
@@ -115,19 +115,19 @@ namespace Tasked.Migrations
             modelBuilder.Entity("Tasked.Entities.ProjectMember", b =>
                 {
                     b.Property<Guid>("ProjectId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("uniqueidentifier")
                         .HasColumnName("project_id");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("uniqueidentifier")
                         .HasColumnName("user_id");
 
                     b.Property<DateTime>("JoinTime")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime2")
                         .HasColumnName("join_time");
 
                     b.Property<int>("Role")
-                        .HasColumnType("integer")
+                        .HasColumnType("int")
                         .HasColumnName("role");
 
                     b.HasKey("ProjectId", "UserId")
@@ -143,24 +143,24 @@ namespace Tasked.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
+                        .HasColumnType("uniqueidentifier")
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime2")
                         .HasColumnName("created_at");
 
                     b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime2")
                         .HasColumnName("expires_at");
 
                     b.Property<string>("TokenHash")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasColumnType("nvarchar(max)")
                         .HasColumnName("token_hash");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("uniqueidentifier")
                         .HasColumnName("user_id");
 
                     b.HasKey("Id")
@@ -179,40 +179,40 @@ namespace Tasked.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
+                        .HasColumnType("uniqueidentifier")
                         .HasColumnName("id");
 
                     b.Property<Guid?>("AssignedId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("uniqueidentifier")
                         .HasColumnName("assigned_id");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("datetime2")
                         .HasColumnName("created_at");
 
                     b.Property<Guid?>("CreatedById")
-                        .HasColumnType("uuid")
+                        .HasColumnType("uniqueidentifier")
                         .HasColumnName("created_by_id");
 
                     b.Property<string>("Description")
-                        .HasColumnType("text")
+                        .HasColumnType("nvarchar(max)")
                         .HasColumnName("description");
 
                     b.Property<int>("IssueNo")
-                        .HasColumnType("integer")
+                        .HasColumnType("int")
                         .HasColumnName("issue_no");
 
                     b.Property<Guid>("ProjectId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("uniqueidentifier")
                         .HasColumnName("project_id");
 
                     b.Property<int>("Status")
-                        .HasColumnType("integer")
+                        .HasColumnType("int")
                         .HasColumnName("status");
 
                     b.Property<string>("Title")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasColumnType("nvarchar(max)")
                         .HasColumnName("title");
 
                     b.HasKey("Id")
@@ -235,21 +235,21 @@ namespace Tasked.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
+                        .HasColumnType("uniqueidentifier")
                         .HasColumnName("id");
 
                     b.Property<Guid?>("OrgId")
-                        .HasColumnType("uuid")
+                        .HasColumnType("uniqueidentifier")
                         .HasColumnName("org_id");
 
                     b.Property<string>("Password")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasColumnType("nvarchar(max)")
                         .HasColumnName("password");
 
                     b.Property<string>("Username")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasColumnType("nvarchar(450)")
                         .HasColumnName("username");
 
                     b.HasKey("Id")
@@ -275,7 +275,7 @@ namespace Tasked.Migrations
                     b.HasOne("Tasked.Entities.User", "Owner")
                         .WithMany("OwnedProjects")
                         .HasForeignKey("OwnerId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired()
                         .HasConstraintName("fk_projects_users_owner_id");
 
@@ -296,7 +296,7 @@ namespace Tasked.Migrations
                     b.HasOne("Tasked.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired()
                         .HasConstraintName("fk_project_members_users_user_id");
 
@@ -328,7 +328,7 @@ namespace Tasked.Migrations
                     b.HasOne("Tasked.Entities.User", "CreatedBy")
                         .WithMany("CreatedTodos")
                         .HasForeignKey("CreatedById")
-                        .OnDelete(DeleteBehavior.SetNull)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .HasConstraintName("fk_todos_users_created_by_id");
 
                     b.HasOne("Tasked.Entities.Project", "Project")
