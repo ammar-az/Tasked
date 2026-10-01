@@ -215,7 +215,7 @@ public class AuthController(ApplicationDbContext db, TokenService tokenService) 
         return new CookieOptions
         {
             HttpOnly = true,
-            Secure = false,
+            Secure = true,
             SameSite = SameSiteMode.None,
             Expires = DateTimeOffset.UtcNow.AddDays(14),
             Path = "api/auth"
