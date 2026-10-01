@@ -78,7 +78,7 @@ var app = builder.Build();
 app.UseHttpsRedirection();
 
 app.UseCors(policy => policy
-    .WithOrigins("http://localhost:5173")
+    .WithOrigins("https://tasked.ammarz.com")
     .AllowAnyMethod()
     .AllowAnyHeader()
     .AllowCredentials());
